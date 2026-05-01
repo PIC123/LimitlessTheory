@@ -7,10 +7,11 @@ import { isHostile } from '../core/factions.js';
 // is a single ship, not the full fleet UI.
 
 export class PlayerActions {
-  constructor(world, weapons, ui) {
+  constructor(world, weapons, ui, game) {
     this.world = world;
     this.weapons = weapons;
     this.ui = ui;
+    this.game = game;       // back-pointer for jump / save
     this.docked = null;
     this.mode = 'flight'; // 'flight' | 'docked'
   }
@@ -63,18 +64,31 @@ export class PlayerActions {
     }
 
     // Dock (F): if near a station, pause the world & open trade.
+    // If near a jump gate, jump to its target system instead.
+    // If neither, complain.
     if (Input.pressed('KeyF')) {
       if (this.mode === 'docked') {
         this.undock();
       } else {
+        // Prefer the closer of the two interactables.
         const station = this.world.closest(p, e => e.kind === 'station', 600);
-        if (station) {
-          this.dock(station);
-        } else {
-          this.world.log('No station in range', 'warn');
-        }
+        const gate    = this.world.closest(p, e => e.kind === 'gate',    700);
+        const stationD = station ? p.position.distanceTo(station.position) : Infinity;
+        const gateD    = gate    ? p.position.distanceTo(gate.position)    : Infinity;
+        if (stationD <= gateD && station) this.dock(station);
+        else if (gate)                     this.jump(gate);
+        else this.world.log('Nothing in range. Approach a station or gate.', 'warn');
       }
     }
+  }
+
+  jump(gate) {
+    if (!this.game) return;
+    const target = gate.metadata.targetSystemId;
+    if (target == null) return;
+    const sys = this.game.galaxy.systemById(target);
+    this.world.log(`Jumping to ${sys.name}…`, 'good');
+    this.game.jumpToSystem(target);
   }
 
   dock(station) {

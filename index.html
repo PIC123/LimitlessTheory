@@ -103,15 +103,20 @@
         <div class="menu-card">
           <h1 class="title-glow">LIMITLESS<span>THEORY</span></h1>
           <p class="subtitle">A modern, web-based reimagining of Josh Parnell's <i>Limit Theory</i>.</p>
+          <div class="menu-row" id="menu-continue-row">
+            <button class="btn primary" id="btn-continue">CONTINUE</button>
+            <span id="menu-save-info" class="menu-tip"></span>
+          </div>
           <div class="menu-row">
             <label>Galaxy Seed
               <input id="seed-input" type="text" value="" placeholder="random" />
             </label>
-            <button class="btn primary" id="btn-start">LAUNCH</button>
+            <button class="btn primary" id="btn-start">NEW GAME</button>
           </div>
           <div class="menu-row">
             <button class="btn" id="btn-controls">CONTROLS</button>
             <button class="btn" id="btn-credits">ABOUT</button>
+            <button class="btn" id="btn-delete-save">DELETE SAVE</button>
           </div>
           <div class="menu-info" id="menu-info"></div>
           <div class="menu-tip">Tip: drag your cursor onto the canvas to capture mouse-look. Press <b>Esc</b> to release.</div>
@@ -123,7 +128,24 @@
         <div class="menu-card">
           <h2>PAUSED</h2>
           <button class="btn primary" id="btn-resume">RESUME</button>
+          <button class="btn" id="btn-save">SAVE GAME</button>
           <button class="btn" id="btn-quit">QUIT TO MENU</button>
+        </div>
+      </div>
+
+      <!-- Galaxy map panel -->
+      <div id="panel-galaxy" class="overlay hidden">
+        <div class="map-card">
+          <h2>GALAXY MAP</h2>
+          <canvas id="galaxy-canvas" width="900" height="600"></canvas>
+          <div class="map-legend">
+            <span class="dot self"></span> Current system
+            <span class="dot ally"></span> Visited
+            <span class="dot neutral"></span> Connection
+            <span class="dot asteroid"></span> Unvisited
+          </div>
+          <div class="menu-tip">Click a connected system to fast-jump (only works for systems linked by a jump gate to the current one).</div>
+          <button class="btn" id="btn-close-galaxy">CLOSE  [G]</button>
         </div>
       </div>
 
@@ -146,21 +168,63 @@
 
       <div id="panel-trade" class="overlay hidden">
         <div class="menu-card wide">
-          <h2 id="trade-title">TRADING</h2>
-          <div class="trade-grid">
-            <div>
-              <h3>STATION MARKET</h3>
-              <div id="trade-market"></div>
-            </div>
-            <div>
-              <h3>YOUR HOLD</h3>
-              <div id="trade-hold"></div>
+          <div class="station-header">
+            <h2 id="trade-title">TRADING</h2>
+            <div class="station-stats">
+              <span>CR <b id="station-credits">0</b></span>
+              <span>HOLD <b id="station-hold">0/0</b></span>
+              <span>HULL <b id="station-hull">0/0</b></span>
+              <span>SHIELD <b id="station-shield">0/0</b></span>
             </div>
           </div>
+          <div class="tabs">
+            <button class="tab active" data-tab="trade">TRADE</button>
+            <button class="tab" data-tab="outfit">OUTFIT</button>
+            <button class="tab" data-tab="services">SERVICES</button>
+          </div>
+
+          <div class="tab-panel" data-tab-panel="trade">
+            <div class="trade-grid">
+              <div>
+                <h3>STATION MARKET</h3>
+                <div id="trade-market"></div>
+              </div>
+              <div>
+                <h3>YOUR HOLD</h3>
+                <div id="trade-hold"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel hidden" data-tab-panel="outfit">
+            <div class="trade-grid">
+              <div>
+                <h3>STATION OUTFITTER</h3>
+                <div id="outfit-market"></div>
+              </div>
+              <div>
+                <h3>SHIP LOADOUT &amp; HANGAR</h3>
+                <div id="outfit-hangar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel hidden" data-tab-panel="services">
+            <div class="services-grid">
+              <button class="service-btn" id="btn-repair">
+                <div class="svc-title">REPAIR HULL</div>
+                <div class="svc-desc">Restore 50% of max hull.</div>
+                <div class="svc-price">200 cr</div>
+              </button>
+              <button class="service-btn" id="btn-refuel">
+                <div class="svc-title">RECHARGE SHIELDS &amp; CELLS</div>
+                <div class="svc-desc">Top off shield and energy reserves.</div>
+                <div class="svc-price">100 cr</div>
+              </button>
+            </div>
+          </div>
+
           <div class="trade-actions">
-            <button class="btn" id="btn-repair">REPAIR HULL · 200 cr</button>
-            <button class="btn" id="btn-refuel">RECHARGE SHIELDS · 100 cr</button>
-            <button class="btn" id="btn-upgrade">UPGRADE WEAPONS · 1500 cr</button>
             <button class="btn primary" id="btn-undock">UNDOCK  [F]</button>
           </div>
         </div>

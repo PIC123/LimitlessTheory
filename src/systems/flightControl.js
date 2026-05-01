@@ -35,8 +35,9 @@ export function applyPlayerFlight(player, dt, opts = {}) {
   if (Input.down('Space')) strafeY += 1;
   if (Input.down('ControlLeft') || Input.down('ControlRight')) strafeY -= 1;
 
-  // Boost / brake.
-  const boost = Input.down('ShiftLeft') || Input.down('ShiftRight') ? 2.4 : 1.0;
+  // Boost / brake. Boost multiplier comes from the equipped engine module.
+  const boostMult = player.metadata.boostMult ?? 2.4;
+  const boost = Input.down('ShiftLeft') || Input.down('ShiftRight') ? boostMult : 1.0;
   const brake = Input.down('KeyX');
 
   // Build local axes from current orientation.

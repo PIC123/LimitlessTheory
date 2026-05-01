@@ -24,13 +24,18 @@ The original Limit Theory (2nd-gen, C + Lua) is organized around a few iconic id
 
 ## What we added that the original never shipped
 
-- **Always-on minimap radar** with disposition coloring.
-- **Polished trade UI** with consume/produce-driven price spreads.
+- **Galaxy of ~12 connected star systems** linked by jump gates. Approach a gate, hit `F`, you cross over.
+- **Modular ship sockets** with a station outfitter — buy/sell/equip weapons, miners, drives, shields, hull plating, and cargo holds across three tiers.
+- **Persistent saves** (single localStorage slot, schema-versioned). Auto-saves on jump, dock, repair, module trade, and every 30s. Quick-save on `F5`.
+- **"Continue" button** on the main menu shows time-since-last-save and lets you jump straight back into your run.
+- **Galaxy map** (`G`) with click-to-jump for adjacent systems and visited-system highlighting.
+- **Always-on minimap radar** with disposition coloring (bottom-right of the HUD).
+- **Polished trade UI** with consume/produce-driven price spreads — refineries are cheap, fabricators are not.
+- **Tabbed station UI** (Trade / Outfit / Services) with a status bar showing credits, hold, hull, shield.
 - **Bloom postFX** (UnrealBloomPass) so engine glow, projectiles, and the star light up properly.
 - **Multiple camera modes** (chase / cockpit / far) bound to `V`.
-- **Boost-tied FOV easing** for a sense of speed.
-- **Friendly wing of escorts** (small fleet) bound to your ship via the `Escort` action.
-- **Quick-action upgrades** at stations: hull repair, shield refill, weapon upgrade.
+- **Boost-tied FOV easing** + **jump-tunnel FOV bump** for a sense of speed.
+- **Friendly wing of escorts** (small fleet) bound to your ship via the `Escort` action — they follow you through gates.
 
 ## Controls
 
@@ -53,9 +58,11 @@ COMBAT
   R                clear target
 
 NAV / META
-  F                dock with nearest station / undock
-  V                cycle camera mode
-  M                large system map
+  F                dock with station / activate jump gate / undock
+  V                cycle camera mode (chase / cockpit / far)
+  M                local system map
+  G                galaxy map
+  F5               quick save
   Esc              pause
 ```
 
@@ -73,7 +80,20 @@ npm run build    # outputs static site to ./dist
 npm run preview  # serves ./dist for a local check
 ```
 
-The build is fully static — drop `dist/` into GitHub Pages, Netlify, Cloudflare Pages, or any static host.
+The build is fully static — drop `dist/` into any host.
+
+### Deploying to Vercel from GitHub
+
+A `vercel.json` is included with the right framework settings, so connecting the repo on Vercel is a one-click flow:
+
+1. On <https://vercel.com/new>, import this GitHub repo.
+2. Vercel auto-detects Vite. The included `vercel.json` confirms:
+   - Framework: `vite`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+3. Click **Deploy**. Every push to your default branch will redeploy automatically; PRs get preview URLs.
+
+No environment variables are needed. The site is fully static; saves live in the visitor's browser via localStorage.
 
 ## Project layout
 

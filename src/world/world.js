@@ -8,6 +8,8 @@ import { buildShipMesh } from '../gen/ship.js';
 import { buildStationMesh } from '../gen/station.js';
 import { buildPlanetMesh, buildStarMesh } from '../gen/planet.js';
 import { buildNebulaSkybox } from '../gen/nebula.js';
+import { buildJumpGateMesh } from '../gen/jumpGate.js';
+import { applyLoadout, defaultLoadout, modulesBySlot, SLOTS } from '../core/modules.js';
 
 // Echoes Limit Theory's kSystemScale = 10000. We use 8000 so distances feel snappy.
 export const SYSTEM_SCALE = 8000;
@@ -102,13 +104,17 @@ export class World {
     this.rng = new RNG(this.seed);
     this.systemName = '';
     this.zones = [];          // descriptive zones (asteroid fields, etc.)
-    this.station = null;      // primary station (for now we keep one, can grow)
+    this.stations = [];       // all stations in the system
+    this.station = null;      // primary station (Coalition, where you respawn)
     this.planet = null;
     this.star = null;
     this.skybox = null;
     this.starDir = new THREE.Vector3(1, 0.2, 0.6).normalize();
     this.elapsed = 0;
     this.events = [];         // toast log queue
+    this.galaxy = opts.galaxy || null;
+    this.systemId = opts.systemId ?? 0;
+    this.gates = [];          // jump-gate entities (one per neighboring system)
   }
 
   log(text, level = 'info') {
@@ -158,7 +164,12 @@ export class World {
   // ---------- Generation (mirrors LT's System:spawnXxx) ----------
   generate() {
     const rng = this.rng;
-    this.systemName = genSystemName(rng);
+    if (this.galaxy && this.systemId != null) {
+      const sys = this.galaxy.systemById(this.systemId);
+      this.systemName = sys?.name || genSystemName(rng);
+    } else {
+      this.systemName = genSystemName(rng);
+    }
 
     // Skybox / nebula.
     this.skybox = buildNebulaSkybox(rng, this.starDir);
@@ -192,13 +203,12 @@ export class World {
 
     // Stations (1..3). One is always Coalition (friendly to player).
     const stationCount = 1 + rng.getInt(0, 2);
-    let firstStation = null;
     for (let i = 0; i < stationCount; i++) {
       const station = new Entity(this, 'station');
       const prod = rng.choose(StationProductions);
       station.name = `${genStationName(rng)} (${prod.name})`;
       station.faction = i === 0 ? Factions.Coalition.id : (rng.getUniform() < 0.6 ? Factions.Traders.id : Factions.Coalition.id);
-      const ringR = SYSTEM_SCALE * 0.55;
+      const ringR = SYSTEM_SCALE * (0.45 + rng.getUniform() * 0.25);
       const ang = rng.getUniform() * Math.PI * 2;
       station.mesh = buildStationMesh(rng);
       station.mesh.position.set(Math.cos(ang) * ringR, (rng.getUniform() - 0.5) * 200, Math.sin(ang) * ringR);
@@ -206,8 +216,42 @@ export class World {
       station.radius = 220;
       station.metadata.production = prod;
       station.metadata.market = this._buildMarket(prod);
+      station.metadata.outfit = this._buildOutfit(prod);
+      this.stations.push(station);
       this.add(station);
-      if (!firstStation) { firstStation = station; this.station = station; }
+      if (i === 0) this.station = station;
+    }
+
+    // Jump gates — one per galaxy-graph neighbor. They sit on a wider ring than
+    // stations and point in the direction of their target system, so the player
+    // can read the galaxy at a glance from in-system.
+    if (this.galaxy) {
+      const sys = this.galaxy.systemById(this.systemId);
+      const gateRadius = SYSTEM_SCALE * 0.95;
+      for (const nbId of sys.neighbors) {
+        const nb = this.galaxy.systemById(nbId);
+        if (!nb) continue;
+        // Direction in galaxy plane → place gate along that bearing in-system.
+        const dx = nb.pos.x - sys.pos.x;
+        const dy = nb.pos.y - sys.pos.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const ax = dx / len, az = dy / len;
+
+        const gate = new Entity(this, 'gate');
+        gate.name = `Gate to ${nb.name}`;
+        gate.faction = Factions.Coalition.id;
+        gate.position.set(ax * gateRadius, 0, az * gateRadius);
+        gate.radius = 180;
+        gate.maxHull = 1e9; gate.hull = 1e9;
+        gate.maxShield = 0; gate.shield = 0;
+        gate.metadata.targetSystemId = nbId;
+        gate.mesh = buildJumpGateMesh();
+        gate.mesh.position.copy(gate.position);
+        // Orient the ring's plane perpendicular to the bearing (looks like you fly through).
+        gate.mesh.lookAt(0, 0, 0);
+        this.gates.push(gate);
+        this.add(gate);
+      }
     }
 
     // Asteroid fields. LT spawns one with ~500 asteroids; we'll do a couple of smaller fields.
@@ -258,24 +302,32 @@ export class World {
       ship.name = `Trader ${i+1}`;
     }
 
-    // Player ship (centered).
+  }
+
+  // Spawn (or respawn) the player ship into this freshly-generated world. Called by
+  // Game right after generate(). Allows passing in saved profile state on load/jump.
+  spawnPlayer(opts = {}) {
     const player = new Entity(this, 'ship');
     player.name = 'YOUR SHIP';
     player.faction = Factions.Player.id;
-    player.position.set(0, 0, 0);
-    player.maxHull = 150; player.hull = 150;
-    player.maxShield = 120; player.shield = 120;
-    player.maxEnergy = 140; player.energy = 140;
+    player.position.copy(opts.position ?? new THREE.Vector3());
+    if (opts.quaternion) player.quaternion.copy(opts.quaternion);
+    player.maxEnergy = 140; player.energy = opts.energy ?? 140;
     player.dragLinear = 0.75; player.dragAngular = 4.0;
-    player.cargoCap = 60;
-    player.credits = 2500;
-    player.thrust = 90;
-    player.weapon = { dmg: 9, rate: 0.14, speed: 1200, range: 1600, cooldown: 0, energy: 3 };
-    player.miner = { dmg: 1.4, rate: 0.18, range: 280, cooldown: 0, energy: 1.5 };
-    player.mesh = buildShipMesh(rng, { role: 'player', size: 8 });
+    player.credits = opts.credits ?? 2500;
+    player.mesh = buildShipMesh(this.rng, { role: 'player', size: 8 });
     player.radius = 9;
+    applyLoadout(player, opts.loadout ?? defaultLoadout());
+    player.hull   = opts.hull   ?? player.maxHull;
+    player.shield = opts.shield ?? player.maxShield;
+    if (opts.cargo) {
+      for (const [k, v] of Object.entries(opts.cargo)) player.cargo.set(k, v);
+    }
+    if (opts.hangar) player.metadata.hangar = [...opts.hangar];
+    else player.metadata.hangar = [];
     this.add(player);
     this.player = player;
+    return player;
   }
 
   _spawnAIShip(factionId) {
@@ -299,6 +351,44 @@ export class World {
     ship.weapon = { dmg: 5, rate: 0.25, speed: 900, range: 1200, cooldown: 0, energy: 3 };
     this.add(ship);
     return ship;
+  }
+
+  // Build the outfit (modules) inventory for a station. Each station randomly stocks
+  // a subset of modules, biased toward its production type so different stations
+  // are reasons to travel: refineries sell engines & miners, foundries sell weapons,
+  // labs sell shields & cargo, etc. Always includes Mk1 of each so the new player
+  // is never stranded with nothing to buy.
+  _buildOutfit(prod) {
+    const stock = {};
+    const slotPriority = {
+      'Refinery':    ['engine', 'miner', 'cargo'],
+      'Foundry':     ['weapon', 'armor'],
+      'Fabricator':  ['weapon', 'shield'],
+      'Powerworks':  ['shield', 'engine'],
+      'Datalab':     ['shield', 'cargo', 'miner'],
+      'Quantumyard': ['weapon', 'armor', 'engine'],
+      'Singularity': ['weapon', 'shield', 'engine', 'armor']
+    };
+    const preferred = slotPriority[prod.name] || ['weapon', 'engine'];
+    for (const slot of SLOTS) {
+      // Always offer Mk1 of every slot.
+      const list = modulesBySlot(slot).filter(m => m.tier === 1);
+      for (const m of list) stock[m.id] = { module: m, count: 99 };
+      // Mk2 + Mk3 only at preferred stations, with limited stock.
+      if (preferred.includes(slot)) {
+        for (const m of modulesBySlot(slot)) {
+          if (m.tier === 1) continue;
+          if (this.rng.getUniform() < (m.tier === 2 ? 0.85 : 0.45)) {
+            stock[m.id] = { module: m, count: m.tier === 2 ? (1 + this.rng.getInt(0, 2)) : 1 };
+          }
+        }
+      } else if (this.rng.getUniform() < 0.25) {
+        // Occasional Mk2 even at non-specialist stations.
+        const m = this.rng.choose(modulesBySlot(slot).filter(x => x.tier === 2));
+        if (m) stock[m.id] = { module: m, count: 1 };
+      }
+    }
+    return stock;
   }
 
   // Initialize per-station market with prices that bias toward consumption/production.
