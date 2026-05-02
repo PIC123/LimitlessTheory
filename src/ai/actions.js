@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { isHostile, isAlly } from '../core/factions.js';
 
 // Direct port of the *shape* of LT's action stack: each action is an object with
 // a name and onUpdateActive(entity, dt, world) hook. When the action believes its
@@ -121,6 +120,104 @@ export function Escort(leader, offset) {
   };
 }
 
+// ---- Trade ----
+// LT had a flow-based economy where traders picked Mine / Transport jobs by
+// payout. We approximate that here: an NPC trader scans every (buyStation,
+// sellStation, item) triple in the system, picks the most profitable route
+// (constrained by buy stock + ship cargo cap), flies to the buy station,
+// loads up, flies to the sell station, dumps the cargo, and re-picks.
+//
+// The market mutates with each transaction (buy decreases stock + nudges
+// sell-price up; sell increases stock + nudges buy-price down) so prices
+// converge over time and routes naturally rotate.
+export function Trade() {
+  let route = null;
+  let phase = 'pickRoute';   // 'pickRoute' | 'goToBuy' | 'goToSell'
+  return {
+    name: 'Trade',
+    onUpdateActive(e, dt, world) {
+      // Re-route at the start, or after a delivery.
+      if (phase === 'pickRoute') {
+        route = pickBestRoute(world, e);
+        if (!route) {
+          // Nothing tradable; idle and let Think rerun later.
+          e.popAction();
+          return;
+        }
+        phase = e.cargoUsed() > 0 ? 'goToSell' : 'goToBuy';
+      }
+
+      const target = (phase === 'goToBuy') ? route.from : route.to;
+      if (!target.alive) { phase = 'pickRoute'; return; }
+
+      const arriveDist = (target.radius || 200) + 60;
+      const dist = e.position.distanceTo(target.position);
+      if (dist > arriveDist) {
+        flyToward(e, target.position, dt, { arriveDist, maxSpeed: e.thrust * 4 });
+        return;
+      }
+
+      // Arrived. Transact.
+      e.velocity.multiplyScalar(Math.exp(-2 * dt));
+      if (phase === 'goToBuy') {
+        const m = route.from.metadata.market[route.item];
+        const free = e.cargoCap - e.cargoUsed();
+        const take = Math.min(m.stock, free, 12);
+        if (take > 0) {
+          m.stock = Math.max(0, m.stock - take);
+          // Stock dropped → sell-price drifts up.
+          m.sellPrice = Math.max(1, Math.round(m.sellPrice * 1.01));
+          e.cargoAdd(route.item, take);
+        }
+        phase = 'goToSell';
+      } else {
+        const m = route.to.metadata.market[route.item];
+        const have = e.cargo.get(route.item) || 0;
+        if (have > 0) {
+          m.stock = m.stock + have;
+          // Stock rose → station's buy-price drifts down.
+          m.buyPrice = Math.max(1, Math.round(m.buyPrice * 0.99));
+          e.cargo.delete(route.item);
+        }
+        // Done — pop so Think can repick.
+        e.popAction();
+        route = null;
+        phase = 'pickRoute';
+      }
+    }
+  };
+}
+
+function pickBestRoute(world, ship) {
+  const stations = world.stations || [];
+  if (stations.length < 2) return null;
+  let best = null, bestProfit = 1;
+  for (const a of stations) {
+    if (!a.alive) continue;
+    for (const b of stations) {
+      if (a === b || !b.alive) continue;
+      const aMarket = a.metadata?.market;
+      const bMarket = b.metadata?.market;
+      if (!aMarket || !bMarket) continue;
+      for (const itemId of Object.keys(aMarket)) {
+        const buy  = aMarket[itemId];   // a SELLS at sellPrice; we BUY here
+        const sell = bMarket[itemId];   // b BUYS at buyPrice; we SELL here
+        if (buy.stock <= 0) continue;
+        const profit = sell.buyPrice - buy.sellPrice;
+        if (profit <= 0) continue;
+        // Prefer routes near the ship to amortize travel.
+        const proximity = 1 / (1 + ship.position.distanceTo(a.position) * 0.0002);
+        const score = profit * proximity;
+        if (score > bestProfit) {
+          bestProfit = score;
+          best = { from: a, to: b, item: itemId, profit };
+        }
+      }
+    }
+  }
+  return best;
+}
+
 // ---- Wander ----
 export function Wander(home, radius = 1500) {
   let dest = null;
@@ -164,9 +261,11 @@ export function Think() {
         const threat = world.findNearestHostile(e, 4500);
         if (threat) { e.pushAction(Attack(threat)); return; }
       } else if (e.faction === 'Traders') {
-        // Cycle stations.
-        const station = world.world.station;
-        if (station) { e.pushAction(MoveTo(station, 280)); return; }
+        // Defend self if a hostile is on top of us, else run trade routes.
+        const threat = world.findNearestHostile(e, 1500);
+        if (threat) { e.pushAction(Attack(threat)); return; }
+        e.pushAction(Trade());
+        return;
       }
 
       // Default: wander.

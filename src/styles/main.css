@@ -132,6 +132,28 @@ body { font-family: var(--mono); color: #cfeaff; user-select: none; overflow: hi
 .hud-value { color: #fff; font-size: 16px; letter-spacing: 2px; margin-top: 2px; }
 .hud-sub { color: var(--orange-dim); font-size: 10px; margin-top: 2px; }
 
+.hud-toolbar {
+  display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 6px;
+  pointer-events: auto;
+}
+.hud-icon-btn {
+  background: rgba(0, 12, 24, 0.7);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  padding: 4px 10px;
+  min-width: 32px;
+  min-height: 32px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+}
+.hud-icon-btn:hover { background: var(--cyan-bg); color: #fff; }
+.hud-icon-btn.fs-on { color: var(--orange); border-color: var(--orange-dim); }
+.hud-icon-btn:active { transform: scale(0.94); }
+
 .hud-bar { margin-bottom: 8px; min-width: 220px; }
 .hud-bar-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--cyan-dim); }
 .hud-bar-track { height: 6px; background: rgba(0,231,255,0.08); border: 1px solid var(--cyan-dim); border-radius: 1px; margin-top: 2px; overflow: hidden; }
@@ -323,6 +345,46 @@ body { font-family: var(--mono); color: #cfeaff; user-select: none; overflow: hi
 
 /* Galaxy map clickable nodes */
 #galaxy-canvas { cursor: pointer; background: rgba(0, 8, 16, 0.6); border: 1px solid var(--panel-edge); display: block; margin-bottom: 12px; }
+
+/* Reputation bars */
+.rep-block { margin: 18px 0; }
+.rep-title { color: var(--orange); font-size: 11px; letter-spacing: 3px; margin-bottom: 8px; }
+.rep-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 90px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.rep-row .name { color: #cfeaff; }
+.rep-row .label { font-size: 10px; text-align: right; }
+.rep-track {
+  position: relative;
+  height: 6px;
+  background: rgba(0, 231, 255, 0.05);
+  border: 1px solid rgba(0, 231, 255, 0.2);
+  border-radius: 1px;
+}
+.rep-track::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px; bottom: -2px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+.rep-fill {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(0, 231, 255, 0.6);
+}
+.rep-fill.bad { background: var(--red); box-shadow: 0 0 8px rgba(255, 71, 106, 0.6); }
+.rep-fill.good { background: var(--green); box-shadow: 0 0 8px rgba(109, 255, 160, 0.6); }
+
+.pause-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 
 /* Compact menu continue row */
 #menu-continue-row { gap: 14px; align-items: center; }

@@ -1,6 +1,7 @@
 import { ItemList, Items } from '../core/items.js';
 import { Modules, SLOTS, SLOT_LABEL, modulesBySlot, applyLoadout } from '../core/modules.js';
 import { loadProfile, hasSave } from '../core/save.js';
+import { Factions, relLabel, repColor, REP_MIN, REP_MAX } from '../core/factions.js';
 import * as THREE from 'three';
 
 // Wires the menu, pause, system-map, galaxy-map, and trade overlays.
@@ -73,8 +74,36 @@ export class Panels {
 
   hideMenu() { this.menu.classList.add('hidden'); }
 
-  showPause() { this.pause.classList.remove('hidden'); }
+  showPause(world) {
+    this._renderRepList(world);
+    this.pause.classList.remove('hidden');
+  }
   hidePause() { this.pause.classList.add('hidden'); }
+
+  _renderRepList(world) {
+    const list = document.getElementById('rep-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const rep = world?.reputation || {};
+    for (const id of ['Coalition', 'Pirates', 'Traders']) {
+      const value = Math.max(REP_MIN, Math.min(REP_MAX, rep[id] || 0));
+      const fname = Factions[id].name;
+      const row = document.createElement('div');
+      row.className = 'rep-row';
+      const pos = value >= 0;
+      const widthPct = Math.abs(value) / 100 * 50; // each side max 50%
+      const fillCls = value >= 50 ? 'good' : (value <= -50 ? 'bad' : '');
+      row.innerHTML = `
+        <div class="name">${fname}</div>
+        <div class="rep-track">
+          <div class="rep-fill ${fillCls}" style="${pos
+            ? `left: 50%; width: ${widthPct}%`
+            : `right: 50%; width: ${widthPct}%`}"></div>
+        </div>
+        <div class="label" style="color:${repColor(value)};">${relLabel(value)} ${value >= 0 ? '+' : ''}${value | 0}</div>`;
+      list.appendChild(row);
+    }
+  }
 
   setWorld(world) { this.world = world; }
 
@@ -313,8 +342,8 @@ NAV / META
   }
 
   // ---- Trade panel (now tabbed) ----
-  openTrade(station, player) {
-    this._tradeStation = station; this._tradePlayer = player;
+  openTrade(station, player, world) {
+    this._tradeStation = station; this._tradePlayer = player; this._world = world || null;
     document.getElementById('trade-title').textContent = `${station.name}`;
     this._selectTab('trade');
     this._renderStationHeader();
@@ -346,11 +375,20 @@ NAV / META
 
   _renderStationHeader() {
     const p = this._tradePlayer;
-    if (!p) return;
+    const s = this._tradeStation;
+    if (!p || !s) return;
     document.getElementById('station-credits').textContent = `${p.credits | 0}`;
     document.getElementById('station-hold').textContent = `${p.cargoUsed()|0}/${p.cargoCap}`;
     document.getElementById('station-hull').textContent = `${p.hull|0}/${p.maxHull|0}`;
     document.getElementById('station-shield').textContent = `${p.shield|0}/${p.maxShield|0}`;
+    const repEl = document.getElementById('station-rep');
+    if (repEl && this._world?.reputation) {
+      const r = this._world.reputation[s.faction] ?? 0;
+      repEl.textContent = `${relLabel(r)} ${r >= 0 ? '+' : ''}${r | 0}`;
+      repEl.style.color = repColor(r);
+    } else if (repEl) {
+      repEl.textContent = '—';
+    }
   }
 
   _renderTrade() {
@@ -516,6 +554,9 @@ NAV / META
     m.stock -= 1;
     p.cargoAdd(item.id, 1);
     m.sellPrice = Math.max(1, Math.round(m.sellPrice * 1.005));
+    this._lastSpent = (this._lastSpent || 0) + m.sellPrice;
+    this.opts.onAfterTrade?.(m.sellPrice, this._tradeStation);
+    this._lastSpent = 0;
     this.refreshTrade();
   }
   _sell(item) {
@@ -527,6 +568,8 @@ NAV / META
     m.stock += 1;
     p.credits += m.buyPrice;
     m.buyPrice = Math.max(1, Math.round(m.buyPrice * 0.995));
+    // Selling also nudges rep but at half rate (not buying their goods).
+    this.opts.onAfterTrade?.(m.buyPrice * 0.5, this._tradeStation);
     this.refreshTrade();
   }
   _buyModule(mod) {
@@ -539,7 +582,7 @@ NAV / META
     entry.count -= 1;
     p.metadata.hangar = p.metadata.hangar || [];
     p.metadata.hangar.push(mod.id);
-    this.opts.onAfterTrade?.();
+    this.opts.onAfterTrade?.(mod.price, this._tradeStation);
     this.refreshTrade();
   }
   _sellModule(mod) {
@@ -547,8 +590,9 @@ NAV / META
     const idx = p.metadata.hangar.indexOf(mod.id);
     if (idx < 0) return;
     p.metadata.hangar.splice(idx, 1);
-    p.credits += Math.floor(mod.price * 0.4);
-    this.opts.onAfterTrade?.();
+    const refund = Math.floor(mod.price * 0.4);
+    p.credits += refund;
+    this.opts.onAfterTrade?.(refund * 0.5, this._tradeStation);
     this.refreshTrade();
   }
   _equip(mod) {
@@ -561,7 +605,8 @@ NAV / META
     if (cur && cur !== mod.id) p.metadata.hangar.push(cur);
     const newLoadout = { ...p.metadata.loadout, [mod.slot]: mod.id };
     applyLoadout(p, newLoadout);
-    this.opts.onAfterTrade?.();
+    // Equipping doesn't move credits, so don't bump rep — just persist.
+    this.opts.onAfterTrade?.(0, this._tradeStation);
     this.refreshTrade();
   }
 }

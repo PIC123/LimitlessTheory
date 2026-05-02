@@ -2,6 +2,7 @@ import { Game } from './game.js';
 import { Panels } from './ui/panels.js';
 import { loadProfile, hasSave, deleteSave } from './core/save.js';
 import * as Touch from './systems/touchControls.js';
+import { bindButtons as bindFullscreen } from './systems/fullscreen.js';
 
 const canvas = document.getElementById('view');
 let game = null;
@@ -11,6 +12,15 @@ Touch.init({ force: new URLSearchParams(location.search).has('touch') });
 Touch.setVisible(false); // hidden until we enter a game
 // On phones, give the canvas the entire viewport including under the address bar.
 if (Touch.isEnabled()) document.body.classList.add('mobile');
+
+// Fullscreen button: bound on both the HUD-corner button and the touch top bar.
+bindFullscreen(
+  document.getElementById('btn-fullscreen'),
+  document.getElementById('touch-fullscreen')
+);
+document.getElementById('btn-quicksave')?.addEventListener('click', () => {
+  if (game?.saveNow()) game.world?.log('Game saved.', 'good');
+});
 
 const panels = new Panels({
   onNewGame: (seedString) => {
@@ -35,7 +45,12 @@ const panels = new Panels({
     if (game?.saveNow()) game.world?.log('Game saved.', 'good');
   },
   onUndock: () => game?.playerActions?.undock(),
-  onAfterTrade: () => {
+  onAfterTrade: (deltaSpent, station) => {
+    // Trading at a faction's station nudges rep up slightly: +1 per ~500 cr.
+    if (game?.world && station && typeof deltaSpent === 'number' && Math.abs(deltaSpent) > 0) {
+      const bump = Math.min(2, Math.max(0.05, Math.abs(deltaSpent) / 500));
+      game.world.adjustRep(station.faction, bump);
+    }
     // Persist immediately after any module trade so the player doesn't have to.
     game?.saveNow();
   },

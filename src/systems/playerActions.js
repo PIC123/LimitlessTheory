@@ -36,7 +36,7 @@ export class PlayerActions {
 
     // Touch TARGET button: cycle hostile → ore → ships in turn.
     if (Touch.pressed('target')) {
-      const hostiles = this.world.entities.filter(e => e.kind === 'ship' && e.alive && e !== p && isHostile(p.faction, e.faction));
+      const hostiles = this.world.entities.filter(e => e.kind === 'ship' && e.alive && e !== p && isHostile(this.world, p.faction, e.faction));
       const ores = this.world.entities.filter(e => e.kind === 'asteroid' && e.alive && e.metadata.ore);
       const list = hostiles.length ? hostiles : (ores.length ? ores : []);
       if (list.length) {
@@ -110,7 +110,7 @@ export class PlayerActions {
   dock(station) {
     this.docked = station;
     this.mode = 'docked';
-    this.ui.openTrade(station, this.world.player);
+    this.ui.openTrade(station, this.world.player, this.world);
     this.world.log(`Docked at ${station.name}`, 'good');
   }
   undock() {

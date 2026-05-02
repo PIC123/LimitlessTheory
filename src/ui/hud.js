@@ -60,7 +60,7 @@ export class HUD {
     if (t && t.alive) {
       this.el.targetName.textContent = t.name || t.kind;
       const dist = p.position.distanceTo(t.position);
-      const rel = isHostile(p.faction, t.faction) ? 'HOSTILE' : (t.faction === 'Player' || t.faction === 'Coalition' ? 'ALLY' : 'NEUTRAL');
+      const rel = isHostile(this.world, p.faction, t.faction) ? 'HOSTILE' : (t.faction === 'Player' || t.faction === 'Coalition' ? 'ALLY' : 'NEUTRAL');
       const hp = t.maxHull ? `${(t.hull|0)}/${t.maxHull|0} HP` : '';
       this.el.targetInfo.textContent = `${rel} · ${(dist*0.6)|0} m · ${hp}`;
       this._updateBracket(t);
@@ -151,7 +151,7 @@ export class HUD {
       else if (e.kind === 'planet')  { color = '#6dffa0'; size = 4; }
       else if (e.kind === 'star')    { color = '#ffd23d'; size = 4; }
       else if (e.kind === 'ship') {
-        if (isHostile(p.faction, e.faction)) color = '#ff476a';
+        if (isHostile(this.world, p.faction, e.faction)) color = '#ff476a';
         else if (e.faction === 'Coalition' || e.faction === 'Player') color = '#00e7ff';
         else color = '#ffd23d';
         size = 2;

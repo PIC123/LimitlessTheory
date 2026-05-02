@@ -88,7 +88,7 @@ export class Game {
     this._beginRunning();
   }
 
-  pause() { this.paused = true; this.panels.showPause(); Input.releasePointer(); }
+  pause() { this.paused = true; this.panels.showPause(this.world); Input.releasePointer(); }
   resume() { this.paused = false; this.panels.hidePause(); }
 
   quit() {
@@ -135,6 +135,7 @@ export class Game {
       galaxySeed,
       currentSystemId: 0,
       visitedSystems: [0],
+      reputation: { Coalition: 0, Pirates: 0, Traders: 0 },
       player: {
         pos: [0, 0, 0],
         quat: [0, 0, 0, 1],
@@ -164,6 +165,9 @@ export class Game {
       hangar: [...(p.metadata.hangar || [])]
     };
     this.persistent.visitedSystems = [...this.visitedSystems];
+    if (this.world?.reputation) {
+      this.persistent.reputation = { ...this.world.reputation };
+    }
   }
 
   _loadSystem(systemId, opts = {}) {
@@ -172,17 +176,20 @@ export class Game {
     // Tear down previous world if any.
     if (this.world) this._teardown();
 
-    // Build new world from the system's seed and galaxy context.
+    // Build new world from the system's seed and galaxy context. Reputation is
+    // carried over from the persistent profile so kill/trade history matters
+    // when crossing systems.
     this.world = new World(this.scene, {
       seed: sys.seed,
       galaxy: this.galaxy,
-      systemId
+      systemId,
+      reputation: this.persistent.reputation
     });
     this.world.generate();
 
     // Cross-cutting AI helpers.
     this.world.findNearestHostile = (e, range) => this.world.closest(e, x =>
-      x.kind === 'ship' && x.alive && isHostile(e.faction, x.faction), range
+      x.kind === 'ship' && x.alive && isHostile(this.world, e.faction, x.faction), range
     );
     this.world.world = this.world;
 
@@ -205,6 +212,8 @@ export class Game {
 
     for (const e of this.world.entities) {
       if (e.kind !== 'ship' || e === this.world.player) continue;
+      // Traders get bigger holds so the system economy actually moves.
+      if (e.faction === 'Traders') e.cargoCap = 80;
       e.pushAction(Actions.Think());
     }
 

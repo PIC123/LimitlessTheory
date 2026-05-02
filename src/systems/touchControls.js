@@ -73,6 +73,7 @@ function _build() {
       <button class="touch-mini" data-btn="map">MAP</button>
       <button class="touch-mini" data-btn="galaxy">GALAXY</button>
       <button class="touch-mini" data-btn="cam">CAM</button>
+      <button class="touch-mini" id="touch-fullscreen" title="Fullscreen">⛶</button>
     </div>
 
     <div class="touch-left-cluster">

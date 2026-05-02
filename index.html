@@ -42,6 +42,10 @@
         </div>
 
         <div class="hud-corner hud-tr">
+          <div class="hud-toolbar">
+            <button class="hud-icon-btn" id="btn-fullscreen" title="Fullscreen">⛶</button>
+            <button class="hud-icon-btn" id="btn-quicksave" title="Save (F5)">SAVE</button>
+          </div>
           <div class="hud-bar">
             <div class="hud-bar-label"><span>HULL</span><span id="hud-hull-text">100</span></div>
             <div class="hud-bar-track"><div class="hud-bar-fill hull" id="hud-hull"></div></div>
@@ -140,9 +144,15 @@
       <div id="panel-pause" class="overlay hidden">
         <div class="menu-card">
           <h2>PAUSED</h2>
-          <button class="btn primary" id="btn-resume">RESUME</button>
-          <button class="btn" id="btn-save">SAVE GAME</button>
-          <button class="btn" id="btn-quit">QUIT TO MENU</button>
+          <div class="rep-block">
+            <div class="rep-title">REPUTATION</div>
+            <div id="rep-list"></div>
+          </div>
+          <div class="pause-actions">
+            <button class="btn primary" id="btn-resume">RESUME</button>
+            <button class="btn" id="btn-save">SAVE GAME</button>
+            <button class="btn" id="btn-quit">QUIT TO MENU</button>
+          </div>
         </div>
       </div>
 
@@ -188,6 +198,7 @@
               <span>HOLD <b id="station-hold">0/0</b></span>
               <span>HULL <b id="station-hull">0/0</b></span>
               <span>SHIELD <b id="station-shield">0/0</b></span>
+              <span>REP <b id="station-rep">—</b></span>
             </div>
           </div>
           <div class="tabs">

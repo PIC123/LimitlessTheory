@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RNG, hashSeed } from '../core/rng.js';
-import { Factions } from '../core/factions.js';
+import { Factions, baseDisposition, adjustRep, defaultReputation, relLabel } from '../core/factions.js';
 import { Items, ItemList, Ores, StationProductions } from '../core/items.js';
 import { genSystemName, genStationName, genFieldName, genShipName } from '../core/names.js';
 import { buildAsteroidMesh } from '../gen/asteroid.js';
@@ -115,6 +115,26 @@ export class World {
     this.galaxy = opts.galaxy || null;
     this.systemId = opts.systemId ?? 0;
     this.gates = [];          // jump-gate entities (one per neighboring system)
+    this.reputation = opts.reputation ? { ...opts.reputation } : defaultReputation();
+  }
+
+  // Adjust the player's rep with a faction. Logs only on whole-point boundary
+  // crossings so toasts aren't spammy when many small bumps stack up.
+  adjustRep(factionId, delta) {
+    const before = this.reputation[factionId] ?? 0;
+    const beforeLabel = relLabel(before);
+    const change = adjustRep(this, factionId, delta);
+    const after = this.reputation[factionId] ?? 0;
+    const afterLabel = relLabel(after);
+    const fname = Factions[factionId]?.name || factionId;
+    if (Math.floor(before) !== Math.floor(after) && Math.abs(change) >= 1) {
+      const sign = change >= 0 ? '+' : '';
+      this.log(`${fname} rep ${sign}${change.toFixed(0)} → ${after.toFixed(0)}`,
+               change >= 0 ? 'good' : 'warn');
+    }
+    if (beforeLabel !== afterLabel) {
+      this.log(`${fname} now ${afterLabel}`, change >= 0 ? 'good' : 'bad');
+    }
   }
 
   log(text, level = 'info') {
@@ -124,11 +144,26 @@ export class World {
   onDestroy(entity, attacker) {
     if (entity.kind === 'ship' || entity.kind === 'asteroid') {
       this.log(`${entity.name || entity.kind} destroyed`, entity === this.player ? 'bad' : 'warn');
-      // Drop cargo as little floating ore — keep it simple by giving credits to the killer.
-      if (attacker && attacker !== entity) {
-        if (entity.kind === 'ship' && entity.faction === Factions.Pirates.id) {
-          attacker.credits = (attacker.credits || 0) + 250 + Math.floor(this.rng.getUniform() * 350);
-          if (attacker === this.player) this.log(`+ ${attacker.credits | 0} cr bounty`, 'good');
+      if (attacker && attacker !== entity && entity.kind === 'ship') {
+        // Bounty: only paid for hostile-by-base-disposition kills.
+        if (attacker === this.player && baseDisposition('Player', entity.faction) < 0) {
+          const bounty = 250 + Math.floor(this.rng.getUniform() * 350);
+          attacker.credits = (attacker.credits || 0) + bounty;
+          this.log(`+${bounty} cr bounty`, 'good');
+        }
+
+        // Reputation: only the player's kills move rep; AI vs AI kills don't.
+        if (attacker === this.player) {
+          const f = entity.faction;
+          // Lose rep with the victim's faction (proportional to current standing).
+          this.adjustRep(f, -3);
+          // Gain rep with factions that hate the victim, lose a touch with allies.
+          for (const otherId of ['Coalition', 'Pirates', 'Traders']) {
+            if (otherId === f) continue;
+            const d = baseDisposition(f, otherId);
+            if (d < 0) this.adjustRep(otherId, 1.2);
+            else if (d > 0) this.adjustRep(otherId, -1);
+          }
         }
       }
     }
@@ -201,8 +236,9 @@ export class World {
       this.add(planet);
     }
 
-    // Stations (1..3). One is always Coalition (friendly to player).
-    const stationCount = 1 + rng.getInt(0, 2);
+    // Stations (2..3) — at least two so trade routes always exist. One is
+    // always Coalition (friendly to player).
+    const stationCount = 2 + rng.getInt(0, 1);
     for (let i = 0; i < stationCount; i++) {
       const station = new Entity(this, 'station');
       const prod = rng.choose(StationProductions);
