@@ -327,3 +327,275 @@ body { font-family: var(--mono); color: #cfeaff; user-select: none; overflow: hi
 /* Compact menu continue row */
 #menu-continue-row { gap: 14px; align-items: center; }
 #menu-save-info { color: #6dffa0; font-size: 11px; }
+
+/* ============================================================ */
+/* TOUCH CONTROLS                                               */
+/* ============================================================ */
+body.touch-mode {
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#touch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none; /* container is pass-through; children opt-in */
+  user-select: none;
+  -webkit-user-select: none;
+}
+#touch-overlay.hidden { display: none; }
+#touch-overlay > * { pointer-events: auto; }
+#touch-overlay button {
+  font-family: var(--mono);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Top mini buttons */
+.touch-top {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+.touch-mini {
+  background: rgba(0, 12, 24, 0.7);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  padding: 8px 12px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  border-radius: 4px;
+  min-width: 56px;
+}
+.touch-mini.pressed { background: var(--cyan-bg); color: #fff; }
+
+/* Side button clusters */
+.touch-left-cluster, .touch-right-cluster {
+  position: absolute;
+  bottom: calc(180px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.touch-left-cluster { left: max(env(safe-area-inset-left), 12px); align-items: flex-start; }
+.touch-right-cluster { right: max(env(safe-area-inset-right), 12px); align-items: flex-end; }
+
+.touch-btn {
+  background: rgba(0, 12, 24, 0.7);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  padding: 10px 14px;
+  font-size: 12px;
+  letter-spacing: 1.8px;
+  font-weight: bold;
+  border-radius: 6px;
+  min-width: 76px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  transition: background 0.08s, transform 0.08s;
+}
+.touch-btn span { font-size: 9px; opacity: 0.6; letter-spacing: 1.5px; margin-top: 2px; font-weight: normal; }
+.touch-btn.pressed { background: var(--cyan-bg); color: #fff; transform: scale(0.95); }
+.touch-btn.small { min-width: 44px; padding: 8px 10px; font-size: 12px; }
+
+.touch-btn-fire {
+  background: rgba(80, 12, 20, 0.85);
+  border-color: var(--red);
+  color: #ffd0d8;
+  min-width: 84px;
+  min-height: 56px;
+}
+.touch-btn-fire.pressed { background: rgba(255, 71, 106, 0.5); color: #fff; }
+
+.touch-btn-mine {
+  background: rgba(60, 36, 12, 0.85);
+  border-color: var(--orange);
+  color: #ffe0c0;
+}
+.touch-btn-mine.pressed { background: rgba(255, 138, 61, 0.5); color: #fff; }
+
+.touch-btn-action {
+  background: rgba(20, 36, 60, 0.85);
+  border-color: var(--cyan);
+  color: #fff;
+  min-width: 84px;
+  min-height: 52px;
+}
+.touch-btn-action.pressed { background: rgba(0, 231, 255, 0.4); }
+
+.touch-roll-row, .touch-strafe-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* Virtual sticks */
+.touch-stick-zone {
+  position: absolute;
+  bottom: max(env(safe-area-inset-bottom), 22px);
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(0, 12, 24, 0.35);
+  border: 1px solid rgba(0, 231, 255, 0.18);
+  touch-action: none;
+}
+.touch-stick-left  { left: max(env(safe-area-inset-left), 22px); }
+.touch-stick-right { right: max(env(safe-area-inset-right), 22px); }
+
+.touch-stick-base {
+  position: absolute;
+  inset: 22px;
+  border-radius: 50%;
+  border: 1px dashed rgba(0, 231, 255, 0.3);
+}
+.touch-stick-thumb {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 60px; height: 60px;
+  margin-left: -30px; margin-top: -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(0,231,255,0.55), rgba(0,231,255,0.2));
+  border: 1px solid var(--cyan);
+  box-shadow: 0 0 18px rgba(0, 231, 255, 0.35);
+  transition: transform 0.08s ease-out;
+  pointer-events: none;
+}
+.touch-stick-label {
+  position: absolute;
+  bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; letter-spacing: 2.5px;
+  color: rgba(0, 231, 255, 0.5);
+  pointer-events: none;
+}
+
+/* Rotate-device prompt */
+#rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  color: var(--cyan);
+  font-family: var(--mono);
+  text-align: center;
+  padding: 24px;
+}
+#rotate-prompt .rotate-icon {
+  font-size: 56px;
+  margin-bottom: 18px;
+  animation: rotate-bob 1.5s ease-in-out infinite;
+}
+#rotate-prompt h2 { margin: 0 0 8px 0; letter-spacing: 4px; color: var(--cyan); }
+#rotate-prompt p { color: #9bc8e6; margin: 0; font-size: 13px; line-height: 1.6; }
+@keyframes rotate-bob {
+  0%, 100% { transform: rotate(0); }
+  50% { transform: rotate(90deg); }
+}
+
+/* ============================================================ */
+/* MOBILE BREAKPOINTS                                           */
+/* ============================================================ */
+
+/* Show rotate prompt in portrait (mobile only). */
+body.mobile #rotate-prompt { display: none; }
+@media (orientation: portrait) and (max-width: 900px) {
+  body.mobile #rotate-prompt { display: flex; }
+  body.mobile #app > #hud,
+  body.mobile #app > #touch-overlay { display: none !important; }
+}
+
+/* Compact panels on small screens (any orientation). */
+@media (max-width: 900px) {
+  .menu-card, .map-card {
+    min-width: 0 !important;
+    width: 95vw;
+    max-width: 95vw;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 16px 18px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .title-glow { font-size: 32px; letter-spacing: 4px; }
+  .subtitle   { font-size: 12px; }
+  .menu-row label { font-size: 10px; }
+  .menu-row input { font-size: 13px; padding: 8px 10px; }
+
+  .btn { padding: 10px 14px; font-size: 11px; }
+  .btn:hover { background: rgba(0,0,0,0.4); }   /* disable hover sticky on touch */
+  .btn:active { background: var(--cyan-bg); color: #fff; }
+
+  .station-header { gap: 10px; }
+  .station-header h2 { font-size: 14px; letter-spacing: 2.5px; }
+  .station-stats { font-size: 9px; gap: 8px; flex-wrap: wrap; }
+
+  .tabs { gap: 0; }
+  .tab { padding: 8px 10px; font-size: 10px; letter-spacing: 1.5px; }
+
+  .trade-grid, .services-grid { grid-template-columns: 1fr !important; }
+  .trade-row {
+    grid-template-columns: 1fr 50px 70px 70px;
+    font-size: 11px;
+    padding: 8px 6px;
+  }
+  .outfit-row {
+    grid-template-columns: 1fr 90px;
+    grid-template-rows: auto auto;
+  }
+  .outfit-row > .tier { grid-column: 1; grid-row: 2; }
+  .outfit-row > .price { grid-column: 1; grid-row: 2; text-align: right; }
+  .outfit-row > :last-child { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; }
+
+  /* Hide map / large canvas at native size; let it scale. */
+  #map-large { width: 100%; height: auto; aspect-ratio: 3 / 2; }
+  #galaxy-canvas { width: 100%; height: auto; aspect-ratio: 3 / 2; }
+
+  /* Smaller HUD when touch overlay is up */
+  #hud { font-size: 10px; }
+  .hud-corner { padding: 8px 10px; min-width: 0; }
+  .hud-tr { min-width: 160px; }
+  .hud-bar { min-width: 150px; }
+  .hud-throttle { width: 130px; }
+  .hud-value { font-size: 13px; }
+
+  /* Hide the full-circle minimap on mobile — too crowded; large map is one tap away. */
+  #hud-map { display: none; }
+  #hud-log { bottom: 22%; }
+  .toast { font-size: 10px; padding: 4px 10px; }
+
+  /* Reticle smaller and positioned slightly above center to avoid stick-thumb clash */
+  #hud-reticle svg { width: 64px; height: 64px; }
+}
+
+/* Landscape phones with very small height: tighten further */
+@media (max-height: 480px) {
+  .touch-stick-zone { width: 130px; height: 130px; }
+  .touch-stick-thumb { width: 48px; height: 48px; margin-left: -24px; margin-top: -24px; }
+  .touch-left-cluster, .touch-right-cluster { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .touch-btn { min-width: 64px; min-height: 38px; padding: 8px 10px; font-size: 11px; }
+  .touch-btn-fire { min-width: 72px; min-height: 44px; }
+  .touch-btn-action { min-width: 72px; min-height: 42px; }
+  .touch-mini { padding: 6px 10px; font-size: 9px; min-width: 48px; }
+
+  #hud .hud-tl, #hud .hud-tr { padding: 4px 8px; }
+  .title-glow { font-size: 24px; }
+  .menu-card, .map-card { padding: 12px 14px; }
+}
+
+/* Larger touch buttons for tablets */
+@media (min-width: 901px) and (pointer: coarse) {
+  .touch-stick-zone { width: 180px; height: 180px; }
+  .touch-btn { min-width: 90px; min-height: 50px; font-size: 13px; }
+  .touch-btn-fire { min-width: 100px; min-height: 64px; font-size: 14px; }
+}

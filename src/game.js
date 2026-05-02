@@ -7,6 +7,7 @@ import { applyPlayerFlight } from './systems/flightControl.js';
 import { integrateEntity } from './systems/physics.js';
 import { PlayerActions } from './systems/playerActions.js';
 import * as Input from './systems/input.js';
+import * as Touch from './systems/touchControls.js';
 import * as Actions from './ai/actions.js';
 import { isHostile } from './core/factions.js';
 import { HUD } from './ui/hud.js';
@@ -60,6 +61,10 @@ export class Game {
 
     Input.initInput(canvas);
     window.addEventListener('resize', () => this._resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this._resize(), 200));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this._resize());
+    }
 
     this._loop = this._loop.bind(this);
   }
@@ -90,6 +95,7 @@ export class Game {
     this.running = false;
     if (this.world) this._teardown();
     if (this.hud) this.hud.hide();
+    Touch.setVisible(false);
     this.scene.background = null;
     this.scene.environment = null;
     this.panels.hidePause();
@@ -234,6 +240,7 @@ export class Game {
       this.hud.camera = this.camera;
     }
     this.hud.show();
+    Touch.setVisible(true);
     this.hud.setObjective(this._objectiveForSystem());
 
     this.playerActions = new PlayerActions(this.world, this.weapons, this.panels, this);
@@ -328,7 +335,9 @@ export class Game {
   }
 
   _resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const vv = window.visualViewport;
+    const w = Math.round(vv?.width  ?? window.innerWidth);
+    const h = Math.round(vv?.height ?? window.innerHeight);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -345,21 +354,21 @@ export class Game {
 
     Input.consumeFrameInput();
 
-    if (Input.pressed('Escape')) {
+    if (Input.pressed('Escape') || Touch.pressed('pause')) {
       if (this.panels.isMapOpen()) this.panels.closeMap();
       else if (this.panels.isGalaxyOpen?.()) this.panels.closeGalaxy();
       else if (this.paused) this.resume();
       else this.pause();
     }
-    if (Input.pressed('KeyM') && !this.paused) {
+    if ((Input.pressed('KeyM') || Touch.pressed('map')) && !this.paused) {
       if (this.panels.isMapOpen()) this.panels.closeMap();
       else this.panels.openMap(this.world);
     }
-    if (Input.pressed('KeyG') && !this.paused) {
+    if ((Input.pressed('KeyG') || Touch.pressed('galaxy')) && !this.paused) {
       if (this.panels.isGalaxyOpen?.()) this.panels.closeGalaxy();
       else this.panels.openGalaxy?.(this.galaxy, this.world.systemId, this.visitedSystems);
     }
-    if (Input.pressed('KeyV') && !this.paused) {
+    if ((Input.pressed('KeyV') || Touch.pressed('cam')) && !this.paused) {
       this.cameraMode = this.cameraMode === 'chase' ? 'cockpit' :
                         this.cameraMode === 'cockpit' ? 'far' : 'chase';
       this.world.log(`Camera: ${this.cameraMode}`, 'good');

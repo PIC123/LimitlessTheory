@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as Input from './input.js';
+import * as Touch from './touchControls.js';
 import { isHostile } from '../core/factions.js';
 
 // Player input that produces "actions" (firing, mining, target lock, dock).
@@ -33,6 +34,21 @@ export class PlayerActions {
     }
     if (Input.pressed('KeyR')) p.target = null;
 
+    // Touch TARGET button: cycle hostile → ore → ships in turn.
+    if (Touch.pressed('target')) {
+      const hostiles = this.world.entities.filter(e => e.kind === 'ship' && e.alive && e !== p && isHostile(p.faction, e.faction));
+      const ores = this.world.entities.filter(e => e.kind === 'asteroid' && e.alive && e.metadata.ore);
+      const list = hostiles.length ? hostiles : (ores.length ? ores : []);
+      if (list.length) {
+        list.sort((a, b) => p.position.distanceToSquared(a.position) - p.position.distanceToSquared(b.position));
+        const idx = list.indexOf(p.target);
+        p.target = list[(idx + 1) % list.length];
+        this.world.log(`Targeting ${p.target.name}`, list === hostiles ? 'warn' : 'good');
+      } else {
+        p.target = null;
+      }
+    }
+
     // Tab cycles ships
     if (Input.pressed('Tab')) {
       const ships = this.world.entities.filter(e => e.kind === 'ship' && e.alive && e !== p);
@@ -43,14 +59,14 @@ export class PlayerActions {
       }
     }
 
-    // Fire weapons (mouse left or Space) — only if a target is locked OR fire forward.
-    if (Input.mouseLeft() && this.mode === 'flight') {
+    // Fire weapons (mouse left, Space, or touch FIRE).
+    if ((Input.mouseLeft() || Touch.btn('fire')) && this.mode === 'flight') {
       const target = p.target && p.target.alive ? p.target : this._syntheticForwardTarget(p);
       if (target) this.weapons.fireBolt(p, target);
     }
 
-    // Mining laser (mouse right or M).
-    if ((Input.mouseRight() || Input.down('KeyM')) && this.mode === 'flight') {
+    // Mining laser (mouse right, M, or touch MINE).
+    if ((Input.mouseRight() || Input.down('KeyM') || Touch.btn('mine')) && this.mode === 'flight') {
       let target = p.target;
       if (!target || target.kind !== 'asteroid' || !target.alive) {
         target = this.world.closest(p, e => e.kind === 'asteroid' && e.alive, p.miner.range + 200);
@@ -66,7 +82,7 @@ export class PlayerActions {
     // Dock (F): if near a station, pause the world & open trade.
     // If near a jump gate, jump to its target system instead.
     // If neither, complain.
-    if (Input.pressed('KeyF')) {
+    if (Input.pressed('KeyF') || Touch.pressed('dock')) {
       if (this.mode === 'docked') {
         this.undock();
       } else {

@@ -1,9 +1,16 @@
 import { Game } from './game.js';
 import { Panels } from './ui/panels.js';
 import { loadProfile, hasSave, deleteSave } from './core/save.js';
+import * as Touch from './systems/touchControls.js';
 
 const canvas = document.getElementById('view');
 let game = null;
+
+// Initialize touch overlay (no-op on desktop). Force=true with ?touch=1 for QA.
+Touch.init({ force: new URLSearchParams(location.search).has('touch') });
+Touch.setVisible(false); // hidden until we enter a game
+// On phones, give the canvas the entire viewport including under the address bar.
+if (Touch.isEnabled()) document.body.classList.add('mobile');
 
 const panels = new Panels({
   onNewGame: (seedString) => {

@@ -1,6 +1,8 @@
 // Captures keyboard, mouse, and pointer-lock state. Exports a small helper
 // other systems consume (`down(key)`, `pressed(key)`, mouse deltas).
 
+import * as Touch from './touchControls.js';
+
 const state = {
   keys: new Set(),
   pressedKeys: new Set(),  // keys that became down this frame
@@ -76,6 +78,9 @@ export function endFrameInput() {
   state.wheel = 0;
   state.pressedMouseLeft = false;
   state.pressedMouseRight = false;
+  // Touch presses are edge-triggered too; clear them at the same point in the
+  // frame as keyboard/mouse press flags.
+  Touch.endFrame();
 }
 
 export function down(code) { return state.keys.has(code); }

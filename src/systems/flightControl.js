@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as Input from './input.js';
+import * as Touch from './touchControls.js';
 
 // Limit Theory's MasterControl was a chained Pitch/Yaw/Roll/Throttle controller mapped
 // to mouse + WASD + Q/E. We mimic the same shape, plus a boost (Shift) and brake (X).
@@ -13,6 +14,11 @@ const _u = new THREE.Vector3();
 
 export function applyPlayerFlight(player, dt, opts = {}) {
   const sens = opts.mouseSens ?? 0.0018;
+  // Touch-stick equivalents — applied per-frame instead of per-event, so we scale
+  // by dt to feel similar to mouse drag.
+  const touchYawRate = 2.4;     // rad/s at full deflection
+  const touchPitchRate = 1.8;
+  const touchRollRate = 1.6;
 
   // Mouse-look rotates ship via pitch (Y) and yaw (X) of the cursor.
   const md = Input.mouseDelta();
@@ -20,25 +26,40 @@ export function applyPlayerFlight(player, dt, opts = {}) {
   let yaw   = -md.x * sens;
   let roll  = 0;
 
-  if (Input.down('KeyQ')) roll += 1;
-  if (Input.down('KeyE')) roll -= 1;
+  // Right touch stick adds to yaw/pitch.
+  const r = Touch.rightAxis();
+  yaw   += -r.x * touchYawRate * dt;
+  pitch += -r.y * touchPitchRate * dt;
 
-  // Throttle (forward/back). LT used W/S; we mirror.
+  if (Input.down('KeyQ') || Touch.btn('rollL')) roll += 1;
+  if (Input.down('KeyE') || Touch.btn('rollR')) roll -= 1;
+
+  // Throttle (forward/back) + strafe. Left touch stick: Y = throttle (up = forward),
+  // X = strafe.
+  const l = Touch.leftAxis();
   let throttleAxis = 0;
   if (Input.down('KeyW')) throttleAxis += 1;
   if (Input.down('KeyS')) throttleAxis -= 1;
+  throttleAxis += -l.y;
 
-  // Strafe.
   let strafeX = 0, strafeY = 0;
   if (Input.down('KeyA')) strafeX -= 1;
   if (Input.down('KeyD')) strafeX += 1;
   if (Input.down('Space')) strafeY += 1;
   if (Input.down('ControlLeft') || Input.down('ControlRight')) strafeY -= 1;
+  strafeX += l.x;
+  if (Touch.btn('up'))   strafeY += 1;
+  if (Touch.btn('down')) strafeY -= 1;
+
+  // Clamp to unit circle so combined keyboard + touch can't exceed 1.
+  throttleAxis = Math.max(-1, Math.min(1, throttleAxis));
+  strafeX = Math.max(-1, Math.min(1, strafeX));
+  strafeY = Math.max(-1, Math.min(1, strafeY));
 
   // Boost / brake. Boost multiplier comes from the equipped engine module.
   const boostMult = player.metadata.boostMult ?? 2.4;
-  const boost = Input.down('ShiftLeft') || Input.down('ShiftRight') ? boostMult : 1.0;
-  const brake = Input.down('KeyX');
+  const boost = (Input.down('ShiftLeft') || Input.down('ShiftRight') || Touch.btn('boost')) ? boostMult : 1.0;
+  const brake = Input.down('KeyX') || Touch.btn('brake');
 
   // Build local axes from current orientation.
   _f.set(0, 0, -1).applyQuaternion(player.quaternion);
