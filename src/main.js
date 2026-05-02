@@ -3,6 +3,7 @@ import { Panels } from './ui/panels.js';
 import { loadProfile, hasSave, deleteSave } from './core/save.js';
 import * as Touch from './systems/touchControls.js';
 import { bindButtons as bindFullscreen } from './systems/fullscreen.js';
+import * as Audio from './systems/audio.js';
 
 const canvas = document.getElementById('view');
 let game = null;
@@ -22,18 +23,77 @@ document.getElementById('btn-quicksave')?.addEventListener('click', () => {
   if (game?.saveNow()) game.world?.log('Game saved.', 'good');
 });
 
+// Audio bootstrap. Browsers require a user gesture; we lazily init on the
+// first NEW GAME / CONTINUE click. Volume sliders live in the pause menu.
+function bootAudioFromGesture() {
+  Audio.init();
+  Audio.resume();
+  // Restore persisted volumes from save (if any).
+  const saved = hasSave() ? loadProfile() : null;
+  if (saved?.audio) {
+    Audio.setVolumes(saved.audio);
+    if (saved.audio.muted != null) Audio.setMuted(saved.audio.muted);
+  }
+  syncVolumeUI();
+}
+
+function syncVolumeUI() {
+  const v = Audio.getVolumes();
+  const m = document.getElementById('vol-master');
+  const mu = document.getElementById('vol-music');
+  const sx = document.getElementById('vol-sfx');
+  const mb = document.getElementById('btn-mute');
+  if (m) m.value = Math.round(v.master * 100);
+  if (mu) mu.value = Math.round(v.music * 100);
+  if (sx) sx.value = Math.round(v.sfx * 100);
+  if (mb) {
+    mb.textContent = v.muted ? 'UNMUTE' : 'MUTE';
+    mb.classList.toggle('muted', !!v.muted);
+  }
+}
+
+function bindVolumeUI() {
+  const persist = () => {
+    if (!game?.persistent) return;
+    game.persistent.audio = Audio.getVolumes();
+    game.saveNow();
+  };
+  document.getElementById('vol-master')?.addEventListener('input', (e) => {
+    Audio.setVolumes({ master: e.target.value / 100 });
+    persist();
+  });
+  document.getElementById('vol-music')?.addEventListener('input', (e) => {
+    Audio.setVolumes({ music: e.target.value / 100 });
+    persist();
+  });
+  document.getElementById('vol-sfx')?.addEventListener('input', (e) => {
+    Audio.setVolumes({ sfx: e.target.value / 100 });
+    persist();
+  });
+  document.getElementById('btn-mute')?.addEventListener('click', () => {
+    Audio.setMuted(!Audio.isMuted());
+    syncVolumeUI();
+    persist();
+  });
+}
+bindVolumeUI();
+
 const panels = new Panels({
   onNewGame: (seedString) => {
+    bootAudioFromGesture();
     if (!game) game = new Game(canvas, panels);
     panels.hideMenu();
     game.startNewGame(seedString);
+    syncVolumeUI();
   },
   onContinue: () => {
     const profile = loadProfile();
     if (!profile) return;
+    bootAudioFromGesture();
     if (!game) game = new Game(canvas, panels);
     panels.hideMenu();
     game.loadGame(profile);
+    syncVolumeUI();
   },
   onDeleteSave: () => {
     deleteSave();

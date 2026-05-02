@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as Input from './input.js';
 import * as Touch from './touchControls.js';
+import * as Audio from './audio.js';
 import { isHostile } from '../core/factions.js';
 
 // Player input that produces "actions" (firing, mining, target lock, dock).
@@ -25,14 +26,14 @@ export class PlayerActions {
     if (Input.pressed('KeyT')) {
       const target = this.world.findNearestHostile(p, 8000) || this.world.closest(p, e => e.kind === 'ship', 8000);
       p.target = target;
-      if (target) this.world.log(`Targeting ${target.name}`, 'warn');
+      if (target) { this.world.log(`Targeting ${target.name}`, 'warn'); Audio.targetLock(); }
     }
     if (Input.pressed('KeyY')) {
       const target = this.world.closest(p, e => e.kind === 'asteroid' && e.metadata.ore, 4000);
       p.target = target;
-      if (target) this.world.log(`Targeting ${target.name}`, 'good');
+      if (target) { this.world.log(`Targeting ${target.name}`, 'good'); Audio.targetLock(); }
     }
-    if (Input.pressed('KeyR')) p.target = null;
+    if (Input.pressed('KeyR')) { if (p.target) Audio.uiBeep(); p.target = null; }
 
     // Touch TARGET button: cycle hostile → ore → ships in turn.
     if (Touch.pressed('target')) {
@@ -65,8 +66,11 @@ export class PlayerActions {
       if (target) this.weapons.fireBolt(p, target);
     }
 
-    // Mining laser (mouse right, M, or touch MINE).
-    if ((Input.mouseRight() || Input.down('KeyM') || Touch.btn('mine')) && this.mode === 'flight') {
+    // Mining laser (mouse right, M, or touch MINE) — sustained; audio plays
+    // continuously as long as the button is held and a target is in range.
+    const wantsMine = (Input.mouseRight() || Input.down('KeyM') || Touch.btn('mine')) && this.mode === 'flight';
+    let mining = false;
+    if (wantsMine) {
       let target = p.target;
       if (!target || target.kind !== 'asteroid' || !target.alive) {
         target = this.world.closest(p, e => e.kind === 'asteroid' && e.alive, p.miner.range + 200);
@@ -75,9 +79,12 @@ export class PlayerActions {
         const dist = p.position.distanceTo(target.position);
         if (dist < p.miner.range + target.radius) {
           this.weapons.fireMiner(p, target);
+          mining = true;
         }
       }
     }
+    if (mining && !this._miningSfx) { Audio.startMining(); this._miningSfx = true; }
+    else if (!mining && this._miningSfx) { Audio.stopMining(); this._miningSfx = false; }
 
     // Dock (F): if near a station, pause the world & open trade.
     // If near a jump gate, jump to its target system instead.
@@ -104,6 +111,8 @@ export class PlayerActions {
     if (target == null) return;
     const sys = this.game.galaxy.systemById(target);
     this.world.log(`Jumping to ${sys.name}…`, 'good');
+    Audio.jumpStart();
+    setTimeout(() => Audio.jumpEnd(), 750);
     this.game.jumpToSystem(target);
   }
 
@@ -112,11 +121,12 @@ export class PlayerActions {
     this.mode = 'docked';
     this.ui.openTrade(station, this.world.player, this.world);
     this.world.log(`Docked at ${station.name}`, 'good');
+    Audio.dock();
+    if (this._miningSfx) { Audio.stopMining(); this._miningSfx = false; }
   }
   undock() {
     if (!this.docked) return;
     const p = this.world.player;
-    // Push the player slightly away from the station.
     const out = new THREE.Vector3().subVectors(p.position, this.docked.position).normalize();
     p.position.addScaledVector(out, 320);
     p.velocity.copy(out).multiplyScalar(60);
@@ -124,6 +134,7 @@ export class PlayerActions {
     this.mode = 'flight';
     this.ui.closeTrade();
     this.world.log('Undocked', 'good');
+    Audio.undock();
   }
 
   // For free-fire when no target locked: pick a fake "infinity ahead" target.

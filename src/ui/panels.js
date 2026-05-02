@@ -2,6 +2,7 @@ import { ItemList, Items } from '../core/items.js';
 import { Modules, SLOTS, SLOT_LABEL, modulesBySlot, applyLoadout } from '../core/modules.js';
 import { loadProfile, hasSave } from '../core/save.js';
 import { Factions, relLabel, repColor, REP_MIN, REP_MAX } from '../core/factions.js';
+import * as Audio from '../systems/audio.js';
 import * as THREE from 'three';
 
 // Wires the menu, pause, system-map, galaxy-map, and trade overlays.
@@ -364,6 +365,7 @@ NAV / META
     for (const panel of document.querySelectorAll('.tab-panel')) {
       panel.classList.toggle('hidden', panel.dataset.tabPanel !== name);
     }
+    Audio.uiBeep();
   }
 
   refreshTrade() {
@@ -557,6 +559,7 @@ NAV / META
     this._lastSpent = (this._lastSpent || 0) + m.sellPrice;
     this.opts.onAfterTrade?.(m.sellPrice, this._tradeStation);
     this._lastSpent = 0;
+    Audio.trade();
     this.refreshTrade();
   }
   _sell(item) {
@@ -570,6 +573,7 @@ NAV / META
     m.buyPrice = Math.max(1, Math.round(m.buyPrice * 0.995));
     // Selling also nudges rep but at half rate (not buying their goods).
     this.opts.onAfterTrade?.(m.buyPrice * 0.5, this._tradeStation);
+    Audio.trade();
     this.refreshTrade();
   }
   _buyModule(mod) {
@@ -583,6 +587,7 @@ NAV / META
     p.metadata.hangar = p.metadata.hangar || [];
     p.metadata.hangar.push(mod.id);
     this.opts.onAfterTrade?.(mod.price, this._tradeStation);
+    Audio.trade();
     this.refreshTrade();
   }
   _sellModule(mod) {
@@ -593,6 +598,7 @@ NAV / META
     const refund = Math.floor(mod.price * 0.4);
     p.credits += refund;
     this.opts.onAfterTrade?.(refund * 0.5, this._tradeStation);
+    Audio.trade();
     this.refreshTrade();
   }
   _equip(mod) {
@@ -607,6 +613,7 @@ NAV / META
     applyLoadout(p, newLoadout);
     // Equipping doesn't move credits, so don't bump rep — just persist.
     this.opts.onAfterTrade?.(0, this._tradeStation);
+    Audio.uiBeep();
     this.refreshTrade();
   }
 }

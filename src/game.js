@@ -8,6 +8,7 @@ import { integrateEntity } from './systems/physics.js';
 import { PlayerActions } from './systems/playerActions.js';
 import * as Input from './systems/input.js';
 import * as Touch from './systems/touchControls.js';
+import * as Audio from './systems/audio.js';
 import * as Actions from './ai/actions.js';
 import { isHostile } from './core/factions.js';
 import { HUD } from './ui/hud.js';
@@ -77,6 +78,7 @@ export class Game {
     this.persistent = this._defaultProfile(galaxySeed);
     this.visitedSystems = new Set([this.persistent.currentSystemId]);
     this._loadSystem(this.persistent.currentSystemId, { isNewGame: true });
+    this._startAudio();
     this._beginRunning();
   }
 
@@ -84,8 +86,19 @@ export class Game {
     this.galaxy = new Galaxy(profile.galaxySeed, { systemCount: 12 });
     this.persistent = profile;
     this.visitedSystems = new Set(profile.visitedSystems || [profile.currentSystemId]);
+    if (profile.audio) Audio.setVolumes(profile.audio);
+    if (profile.audio?.muted != null) Audio.setMuted(profile.audio.muted);
     this._loadSystem(profile.currentSystemId, { fromSave: true });
+    this._startAudio();
     this._beginRunning();
+  }
+
+  // Boot the engine + music. Audio.init() must already have been called from
+  // the user-gesture handler in main.js; this just kicks the continuous voices.
+  _startAudio() {
+    Audio.resume();
+    Audio.startEngine();
+    Audio.startMusic();
   }
 
   pause() { this.paused = true; this.panels.showPause(this.world); Input.releasePointer(); }
@@ -93,6 +106,11 @@ export class Game {
 
   quit() {
     this.running = false;
+    Audio.stopEngine();
+    Audio.stopMining();
+    Audio.stopWarning();
+    Audio.stopMusic();
+    this._warningOn = false;
     if (this.world) this._teardown();
     if (this.hud) this.hud.hide();
     Touch.setVisible(false);
@@ -168,6 +186,8 @@ export class Game {
     if (this.world?.reputation) {
       this.persistent.reputation = { ...this.world.reputation };
     }
+    // Mirror current audio settings so they persist through saves.
+    this.persistent.audio = Audio.getVolumes();
   }
 
   _loadSystem(systemId, opts = {}) {
@@ -398,8 +418,23 @@ export class Game {
     world.elapsed += dt;
 
     if (this.playerActions.mode !== 'docked' && world.player.alive) {
+      const prevBoost = world.player.boost ?? 1;
       applyPlayerFlight(world.player, dt);
       this.playerActions.update(dt);
+      // Boost-engaged whoosh: fires once when boost crosses the threshold.
+      if (prevBoost < 1.5 && (world.player.boost ?? 1) >= 1.5) Audio.boostWhoosh();
+
+      // Engine SFX: keep level tracking the player's throttle.
+      const v = world.player.velocity.length();
+      Audio.updateEngine(v / 380, world.player.boost ?? 1);
+
+      // Low-hull warning loop: starts under 25%, stops above 35% (hysteresis).
+      const hullPct = world.player.hull / world.player.maxHull;
+      if (!this._warningOn && hullPct < 0.25) { Audio.startWarning(); this._warningOn = true; }
+      else if (this._warningOn && hullPct > 0.35) { Audio.stopWarning(); this._warningOn = false; }
+    } else {
+      // While docked, idle the engine.
+      Audio.updateEngine(0, 1);
     }
 
     // AI tick.

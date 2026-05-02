@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as Audio from './audio.js';
 
 // Bolt + mining-laser systems. Pools are kept tight so a few hundred shots in flight
 // stay performant. Mirrors LT's Pulse / Turret pairing without the full socket model.
@@ -67,6 +68,12 @@ export class Weapons {
       shooter,
       shooterFaction: shooter.faction
     });
+    // Spatial-ish: only audible if the shooter is the player or close to them.
+    const player = this.world.player;
+    if (shooter === player) Audio.fire();
+    else if (player && shooter.position.distanceToSquared(player.position) < 1500*1500) {
+      Audio.fire();
+    }
   }
 
   fireMiner(shooter, asteroid) {
@@ -85,6 +92,7 @@ export class Weapons {
         this.world.log(`Mined ${taken} ${asteroid.metadata.ore}`, 'good');
       }
       this.spawnExplosion(asteroid.position, 30, 0xb89c78);
+      Audio.explode(0.7);
     }
   }
 
@@ -118,10 +126,18 @@ export class Weapons {
         if (d2 < r * r) { hit = e; break; }
       }
       if (hit) {
+        const shieldedBefore = hit.shield > 0;
         hit.applyDamage(b.damage, b.shooter);
         this.spawnExplosion(b.pos, 6, b.mesh.material.color.getHex());
+        const player = this.world.player;
+        const audibleClose = !player || hit.position.distanceToSquared(player.position) < 1800*1800;
+        if (audibleClose) {
+          if (shieldedBefore && hit.shield > 0) Audio.shieldHit();
+          else Audio.boltHit();
+        }
         if (!hit.alive && hit.kind === 'ship') {
           this.spawnExplosion(hit.position, 38, 0xff8a3d);
+          if (audibleClose) Audio.explode(hit === this.world.player ? 1.6 : 1.0);
         }
         this.scene.remove(b.mesh);
         this.bolts.splice(i, 1);
