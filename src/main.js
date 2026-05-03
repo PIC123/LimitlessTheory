@@ -78,6 +78,30 @@ function bindVolumeUI() {
 }
 bindVolumeUI();
 
+// Close-X buttons + tap-on-backdrop for map/galaxy. Pause and trade refuse
+// backdrop-tap dismissal so the player doesn't accidentally lose modal state.
+const closeHandlers = {
+  resume:  () => game?.resume(),
+  map:     () => panels.closeMap?.(),
+  galaxy:  () => panels.closeGalaxy?.(),
+  undock:  () => game?.playerActions?.undock()
+};
+for (const btn of document.querySelectorAll('[data-close]')) {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    closeHandlers[btn.dataset.close]?.();
+  });
+}
+// Backdrop tap: close map/galaxy when tapping outside the inner card.
+for (const overlayId of ['panel-map', 'panel-galaxy']) {
+  const ov = document.getElementById(overlayId);
+  ov?.addEventListener('click', (e) => {
+    if (e.target === ov) {
+      closeHandlers[ov.dataset.closeHandler]?.();
+    }
+  });
+}
+
 const panels = new Panels({
   onNewGame: (seedString) => {
     bootAudioFromGesture();

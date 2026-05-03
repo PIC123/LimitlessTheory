@@ -86,23 +86,65 @@ export class PlayerActions {
     if (mining && !this._miningSfx) { Audio.startMining(); this._miningSfx = true; }
     else if (!mining && this._miningSfx) { Audio.stopMining(); this._miningSfx = false; }
 
-    // Dock (F): if near a station, pause the world & open trade.
-    // If near a jump gate, jump to its target system instead.
-    // If neither, complain.
+    // Interact (F or touch DOCK):
+    //   - If docked, undock.
+    //   - On planet surface, approach a POI to loot it (or take off if near
+    //     the spawn altitude).
+    //   - In space, prefer the closest of: station / gate / planet / poi.
     if (Input.pressed('KeyF') || Touch.pressed('dock')) {
-      if (this.mode === 'docked') {
-        this.undock();
-      } else {
-        // Prefer the closer of the two interactables.
-        const station = this.world.closest(p, e => e.kind === 'station', 600);
-        const gate    = this.world.closest(p, e => e.kind === 'gate',    700);
-        const stationD = station ? p.position.distanceTo(station.position) : Infinity;
-        const gateD    = gate    ? p.position.distanceTo(gate.position)    : Infinity;
-        if (stationD <= gateD && station) this.dock(station);
-        else if (gate)                     this.jump(gate);
-        else this.world.log('Nothing in range. Approach a station or gate.', 'warn');
+      if (this.mode === 'docked') { this.undock(); return; }
+      if (this.world?.kind === 'surface') {
+        const poi = this.world.closest(p, e => e.kind === 'poi' && e.alive, 80);
+        if (poi) { this._lootPOI(poi); return; }
+        // High-altitude take-off prompt.
+        if ((p.metadata?.altitude || 0) > 600) { this.game?.takeOff(); return; }
+        this.world.log('Approach a ruin or outpost (or fly higher to take off).', 'warn');
+        return;
       }
+      // Space: pick whichever interactable is closest.
+      const station = this.world.closest(p, e => e.kind === 'station', 600);
+      const gate    = this.world.closest(p, e => e.kind === 'gate',    700);
+      const planet  = this.world.closest(p, e => e.kind === 'planet',  3500);
+      const poi     = this.world.closest(p, e => e.kind === 'poi',     400);
+      const candidates = [
+        station && { e: station, d: p.position.distanceTo(station.position), act: () => this.dock(station) },
+        gate    && { e: gate,    d: p.position.distanceTo(gate.position),    act: () => this.jump(gate) },
+        planet  && { e: planet,  d: p.position.distanceTo(planet.position),  act: () => this.game?.landOnPlanet(planet) },
+        poi     && { e: poi,     d: p.position.distanceTo(poi.position),     act: () => this._lootPOI(poi) }
+      ].filter(Boolean);
+      if (!candidates.length) {
+        this.world.log('Nothing in range. Approach a station, gate, planet, or POI.', 'warn');
+        return;
+      }
+      candidates.sort((a, b) => a.d - b.d);
+      candidates[0].act();
     }
+  }
+
+  // Loot a POI (planet ruin/outpost or in-space derelict). One-shot reward;
+  // the POI marks itself looted afterward and the beacon dims.
+  _lootPOI(poi) {
+    if (poi.metadata.looted) {
+      this.world.log(`${poi.name} — already explored.`, 'warn');
+      return;
+    }
+    poi.metadata.looted = true;
+    const reward = poi.metadata.rewardCredits || 500;
+    const p = this.world.player;
+    p.credits += reward;
+    Audio.dock();
+    this.world.log(`Recovered ${reward} cr from ${poi.name}.`, 'good');
+    if (poi.mesh) {
+      poi.mesh.traverse(node => {
+        if (node.userData?.isCore || node.userData?.isBeacon) {
+          if (node.material) {
+            node.material.emissiveIntensity = 0.1;
+            node.material.emissive = new THREE.Color(0x222222);
+          }
+        }
+      });
+    }
+    this.game?.saveNow();
   }
 
   jump(gate) {

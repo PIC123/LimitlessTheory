@@ -113,6 +113,11 @@
 
         <!-- Toast log -->
         <div id="hud-log"></div>
+
+        <!-- Interact prompt -->
+        <div id="hud-interact" class="hidden">
+          <span class="key">F</span><span class="action" id="hud-interact-text">DOCK</span>
+        </div>
       </div>
 
       <!-- Main menu -->
@@ -141,8 +146,9 @@
       </div>
 
       <!-- Pause / Map / Trade panels -->
-      <div id="panel-pause" class="overlay hidden">
+      <div id="panel-pause" class="overlay hidden" data-close-handler="resume">
         <div class="menu-card">
+          <button class="modal-close" data-close="resume" aria-label="Resume">✕</button>
           <h2>PAUSED</h2>
           <div class="rep-block">
             <div class="rep-title">REPUTATION</div>
@@ -173,8 +179,9 @@
       </div>
 
       <!-- Galaxy map panel -->
-      <div id="panel-galaxy" class="overlay hidden">
+      <div id="panel-galaxy" class="overlay hidden" data-close-handler="galaxy">
         <div class="map-card">
+          <button class="modal-close" data-close="galaxy" aria-label="Close">✕</button>
           <h2>GALAXY MAP</h2>
           <canvas id="galaxy-canvas" width="900" height="600"></canvas>
           <div class="map-legend">
@@ -188,8 +195,9 @@
         </div>
       </div>
 
-      <div id="panel-map" class="overlay hidden">
+      <div id="panel-map" class="overlay hidden" data-close-handler="map">
         <div class="map-card">
+          <button class="modal-close" data-close="map" aria-label="Close">✕</button>
           <h2>SYSTEM MAP — <span id="map-title">—</span></h2>
           <canvas id="map-large" width="900" height="600"></canvas>
           <div class="map-legend">
@@ -207,6 +215,7 @@
 
       <div id="panel-trade" class="overlay hidden">
         <div class="menu-card wide">
+          <button class="modal-close" data-close="undock" aria-label="Undock">✕</button>
           <div class="station-header">
             <h2 id="trade-title">TRADING</h2>
             <div class="station-stats">

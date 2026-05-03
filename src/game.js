@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { World } from './world/world.js';
 import { Galaxy } from './world/galaxy.js';
+import { PlanetSurface } from './world/planetSurface.js';
 import { Weapons } from './systems/weapons.js';
 import { DustField } from './systems/dust.js';
 import { applyPlayerFlight } from './systems/flightControl.js';
@@ -59,6 +60,7 @@ export class Game {
     this.cameraMode = 'chase';
     this._fovLerp = 72;
     this._jumpFlash = 0;
+    this.mode = 'space';   // 'space' | 'surface'
 
     Input.initInput(canvas);
     window.addEventListener('resize', () => this._resize());
@@ -130,6 +132,100 @@ export class Game {
     return saveProfile(this.persistent);
   }
 
+  // ---- Planet landing / takeoff ----
+
+  // Land on a planet entity in the current system. Tears down the system
+  // scene and replaces it with a PlanetSurface. The planet's index in
+  // the current system is recorded so takeoff can rebuild and restore
+  // the player's position near it.
+  landOnPlanet(planet) {
+    if (!this.world || !planet || planet.kind !== 'planet') return;
+    if (this.mode === 'surface') return;
+    this._captureLiveStateIntoProfile();
+
+    // Remember which planet/system we came from for takeoff.
+    this._fromPlanetSystem = this.world.systemId;
+    this._fromPlanetIndex  = (this.world.entities.indexOf(planet)) >>> 0;
+    this._fromPlanetPos    = planet.position.clone();
+
+    // Build the surface scene (deterministic from a hash of system+planet).
+    const surfSeed = (this.world.seed ^ ((planet.id || 0) * 2654435761)) >>> 0;
+    this._teardown();
+
+    const surf = new PlanetSurface(this.scene, {
+      seed: surfSeed,
+      planetName: planet.name,
+      biome: 'desert',
+      reputation: this.persistent.reputation
+    });
+    surf.generate();
+    surf.spawnPlayer({
+      hull:   this.persistent.player.hull,
+      shield: this.persistent.player.shield,
+      energy: this.persistent.player.energy,
+      credits:this.persistent.player.credits,
+      cargo:  this.persistent.player.cargo,
+      loadout:this.persistent.player.loadout,
+      hangar: this.persistent.player.hangar
+    });
+    this.world = surf;
+    this.world.findNearestHostile = () => null;
+    this.world.world = surf;
+    this.mode = 'surface';
+
+    // Surface uses no Weapons but the rest of the engine expects one.
+    this.weapons = new Weapons(this.world, this.scene);
+    this.world.weapons = this.weapons;
+
+    // Surface has no AI dust system — replace with a much smaller dust
+    // field so we still get a sense of motion as we fly.
+    this.dust = new DustField(this.scene, { count: 600, cell: 200 });
+    this._laserSegments = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: 0xff8a3d, transparent: true, opacity: 0.85 })
+    );
+    this.scene.add(this._laserSegments);
+
+    if (!this.hud) this.hud = new HUD(this.world, this.camera);
+    else { this.hud.world = this.world; this.hud.camera = this.camera; }
+    this.hud.show();
+    this.hud.setObjective('Explore the surface. Land near a POI to investigate.');
+
+    this.playerActions = new PlayerActions(this.world, this.weapons, this.panels, this);
+
+    if (!this.composer) {
+      const { composer, bloom } = createComposer(this.renderer, this.scene, this.camera);
+      this.composer = composer; this.bloom = bloom;
+    }
+
+    this._resize();
+    this._jumpFlash = 1.0;
+    this.world.log(`Atmospheric entry — ${planet.name}.`, 'good');
+    Audio.jumpStart();
+    setTimeout(() => Audio.jumpEnd(), 750);
+  }
+
+  // Restore the system the player launched from and place them near the
+  // planet they originally landed on.
+  takeOff() {
+    if (this.mode !== 'surface') return;
+    this._captureLiveStateIntoProfile();
+    const sysId = this._fromPlanetSystem ?? this.persistent.currentSystemId;
+    this._teardown();
+    this.persistent.currentSystemId = sysId;
+    this._loadSystem(sysId, { fromSystemId: -1 });
+    // Position player just above (in +Y) the planet they took off from.
+    if (this._fromPlanetPos) {
+      const off = new THREE.Vector3(0, 1, 0).multiplyScalar(2200);
+      this.world.player.position.copy(this._fromPlanetPos).add(off);
+      this.world.player.velocity.set(0, 0, -40);
+    }
+    this.mode = 'space';
+    this.world.log('Atmospheric egress — back in space.', 'good');
+    this.saveNow();
+    Audio.jumpEnd();
+  }
+
   // Initiate a jump to a target system id. Called by player when near a gate, or
   // from the galaxy map for fast-travel debug. Tears down the current system,
   // builds the target system from its seed, and places the player at the
@@ -190,11 +286,73 @@ export class Game {
     this.persistent.audio = Audio.getVolumes();
   }
 
+  _stepSurface(dt) {
+    const world = this.world;
+    const p = world.player;
+    if (!p) return;
+
+    // Player flight — same controls; the only difference is gravity (the
+    // surface adds it inside surfaceUpdate) and no AI ticks.
+    if (p.alive) {
+      const prevBoost = p.boost ?? 1;
+      applyPlayerFlight(p, dt);
+      this.playerActions.update(dt);
+      if (prevBoost < 1.5 && (p.boost ?? 1) >= 1.5) Audio.boostWhoosh();
+      Audio.updateEngine(p.velocity.length() / 380, p.boost ?? 1);
+    }
+
+    // Physics + gravity.
+    integrateEntity(p, dt);
+    world.surfaceUpdate(dt);
+
+    // Pulse engine glow.
+    if (p.mesh && p.mesh.userData.engineGroup) {
+      const v = p.velocity.length();
+      const pulse = 0.7 + 0.3 * Math.sin(world.elapsed * 12);
+      const intensity = 0.4 + Math.min(1, v / 300) * 1.3 * pulse;
+      for (const g of p.mesh.userData.engineGroup.children) {
+        g.material.opacity = Math.min(1, 0.6 + intensity * 0.4);
+        g.scale.setScalar(0.7 + intensity * 0.6);
+      }
+    }
+
+    // POI beacon pulse.
+    for (const e of world.entities) {
+      if (e.kind === 'poi' && e.mesh) {
+        e.mesh.rotation.y += 0.05 * dt;
+        e.mesh.traverse(node => {
+          if (node.userData?.isCore || node.userData?.isBeacon) {
+            const k = 0.6 + 0.4 * Math.sin(world.elapsed * 3 + e.id);
+            if (node.material) node.material.emissiveIntensity = 1.5 * k;
+          }
+        });
+      }
+    }
+
+    // Weapons can still fire (target dummy targets); keep update so cooldowns tick.
+    if (this.weapons) this.weapons.update(dt);
+
+    // Camera + dust + fov easing (re-uses space code).
+    this._updateCamera(dt);
+    this.dust.update(this.camera);
+    const targetFov = p.boost > 1.5 ? 86 : 72;
+    this._fovLerp += (targetFov - this._fovLerp) * Math.min(1, 4 * dt);
+    if (this._jumpFlash > 0) {
+      this._fovLerp = THREE.MathUtils.lerp(this._fovLerp, 110, this._jumpFlash);
+      this._jumpFlash = Math.max(0, this._jumpFlash - dt * 1.6);
+    }
+    this.camera.fov = this._fovLerp;
+    this.camera.updateProjectionMatrix();
+
+    this.hud.update(dt, this.playerActions.mode === 'docked' ? 'docked' : 'surface');
+  }
+
   _loadSystem(systemId, opts = {}) {
     const sys = this.galaxy.systemById(systemId);
 
     // Tear down previous world if any.
     if (this.world) this._teardown();
+    this.mode = 'space';
 
     // Build new world from the system's seed and galaxy context. Reputation is
     // carried over from the persistent profile so kill/trade history matters
@@ -343,6 +501,9 @@ export class Game {
 
   _teardown() {
     if (this.world) {
+      // Surface scenes own additional objects (terrain, sky, lights) outside
+      // their entities[] list — give them a chance to clean up.
+      if (typeof this.world.teardown === 'function') this.world.teardown();
       for (const e of this.world.entities) {
         if (e.mesh) this.scene.remove(e.mesh);
       }
@@ -416,6 +577,13 @@ export class Game {
     const world = this.world;
     if (!world) return;
     world.elapsed += dt;
+
+    // Surface mode: simpler update — no AI ships, no weapons-AI, but we still
+    // run flight, weapons (player only), physics, terrain collision.
+    if (this.mode === 'surface') {
+      this._stepSurface(dt);
+      return;
+    }
 
     if (this.playerActions.mode !== 'docked' && world.player.alive) {
       const prevBoost = world.player.boost ?? 1;

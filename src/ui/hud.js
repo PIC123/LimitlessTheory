@@ -10,6 +10,8 @@ export class HUD {
     this.camera = camera;
     this.el = {
       hud: document.getElementById('hud'),
+      interact: document.getElementById('hud-interact'),
+      interactText: document.getElementById('hud-interact-text'),
       systemName: document.getElementById('hud-system-name'),
       credits: document.getElementById('hud-credits'),
       cargo: document.getElementById('hud-cargo'),
@@ -70,6 +72,9 @@ export class HUD {
       this.el.bracket.classList.add('hidden');
     }
 
+    // Interact prompt — show the closest interactable + an action label.
+    this._updateInteractPrompt(p);
+
     // Toast log.
     while (this.world.events.length) {
       const ev = this.world.events.shift();
@@ -84,6 +89,36 @@ export class HUD {
     const pct = Math.max(0, Math.min(1, val / max));
     bar.style.width = `${(pct * 100) | 0}%`;
     text.textContent = `${(val | 0)}/${max | 0}`;
+  }
+
+  _updateInteractPrompt(p) {
+    const surface = this.world.kind === 'surface';
+    let prompt = null;
+    const candidates = [];
+    if (surface) {
+      const poi = this.world.closest(p, e => e.kind === 'poi' && e.alive, 80);
+      if (poi) candidates.push({ d: p.position.distanceTo(poi.position), label: poi.metadata.looted ? `EXPLORED — ${poi.name}` : `EXPLORE ${poi.name}` });
+      if ((p.metadata?.altitude || 0) > 600) candidates.push({ d: 0, label: 'TAKE OFF' });
+    } else {
+      const station = this.world.closest(p, e => e.kind === 'station', 600);
+      const gate    = this.world.closest(p, e => e.kind === 'gate',    700);
+      const planet  = this.world.closest(p, e => e.kind === 'planet',  3500);
+      const poi     = this.world.closest(p, e => e.kind === 'poi',     400);
+      if (station) candidates.push({ d: p.position.distanceTo(station.position), label: `DOCK ${station.name}` });
+      if (gate)    candidates.push({ d: p.position.distanceTo(gate.position),    label: `JUMP — ${gate.name}` });
+      if (planet)  candidates.push({ d: p.position.distanceTo(planet.position),  label: `LAND ${planet.name}` });
+      if (poi)     candidates.push({ d: p.position.distanceTo(poi.position),     label: poi.metadata.looted ? `EXPLORED — ${poi.name}` : `EXPLORE ${poi.name}` });
+    }
+    if (candidates.length) {
+      candidates.sort((a, b) => a.d - b.d);
+      prompt = candidates[0].label;
+    }
+    if (prompt) {
+      this.el.interactText.textContent = prompt;
+      this.el.interact.classList.remove('hidden');
+    } else {
+      this.el.interact.classList.add('hidden');
+    }
   }
 
   _updateBracket(target) {

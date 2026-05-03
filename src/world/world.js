@@ -9,6 +9,7 @@ import { buildStationMesh } from '../gen/station.js';
 import { buildPlanetMesh, buildStarMesh } from '../gen/planet.js';
 import { buildNebulaSkybox } from '../gen/nebula.js';
 import { buildJumpGateMesh } from '../gen/jumpGate.js';
+import { buildDerelictMesh } from '../gen/poi.js';
 import { applyLoadout, defaultLoadout, modulesBySlot, SLOTS } from '../core/modules.js';
 
 // Echoes Limit Theory's kSystemScale = 10000. We use 8000 so distances feel snappy.
@@ -117,6 +118,10 @@ export class World {
     this.gates = [];          // jump-gate entities (one per neighboring system)
     this.reputation = opts.reputation ? { ...opts.reputation } : defaultReputation();
   }
+
+  // World identifier — kept consistent with PlanetSurface's `kind: 'surface'`
+  // so other systems can query which scene they're rendering against.
+  get kind() { return 'space'; }
 
   // Adjust the player's rep with a faction. Logs only on whole-point boundary
   // crossings so toasts aren't spammy when many small bumps stack up.
@@ -321,6 +326,30 @@ export class World {
         this.add(a);
       }
       this.zones.push(zone);
+    }
+
+    // Space ruins: 1-2 derelict capital-ship wrecks per system, drifting
+    // somewhere off the main asteroid fields. Approach them and press F to
+    // recover salvage. Each is a non-combat, non-physics entity.
+    const ruinCount = 1 + rng.getInt(0, 1);
+    for (let i = 0; i < ruinCount; i++) {
+      const dir = rng.getDir3();
+      dir.y *= 0.2;
+      const r = SYSTEM_SCALE * (0.4 + rng.getUniform() * 0.5);
+      const ruin = new Entity(this, 'poi');
+      ruin.name = `Derelict ${genStationName(rng).split(' ')[0]}`;
+      ruin.faction = Factions.Coalition.id;
+      ruin.position.copy(dir.normalize()).multiplyScalar(r);
+      ruin.maxHull = 1e9; ruin.hull = 1e9;
+      ruin.maxShield = 0; ruin.shield = 0;
+      ruin.mesh = buildDerelictMesh(rng);
+      ruin.mesh.position.copy(ruin.position);
+      ruin.mesh.quaternion.copy(rng.getQuat());
+      ruin.radius = ruin.mesh.userData.radius || 60;
+      ruin.metadata.poiKind = 'derelict';
+      ruin.metadata.looted = false;
+      ruin.metadata.rewardCredits = 800 + rng.getInt(0, 1200);
+      this.add(ruin);
     }
 
     // AI ships: a few patrols + a few pirates roaming the asteroid fields.
