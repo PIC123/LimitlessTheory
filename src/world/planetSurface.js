@@ -84,14 +84,16 @@ export class PlanetSurface {
     this.scene.background = null;
     this.scene.environment = null;
 
-    // Big directional sun matching the sky's sun direction.
-    const sun = new THREE.DirectionalLight(0xffe5b8, 2.0);
+    // Single directional sun, warm but not eye-searing. Threshold-gated bloom
+    // (see render/postfx) means the sunlit terrain itself doesn't bloom — only
+    // the sky's sun disk and the POI beacons do.
+    const sun = new THREE.DirectionalLight(0xffe5b8, 1.15);
     sun.position.set(60, 50, 30);
     this.scene.add(sun);
     this._sun = sun;
 
-    // Soft fill from horizon color.
-    const fill = new THREE.HemisphereLight(0xffd6a0, 0x4a3015, 0.55);
+    // Soft fill from horizon color (gives shadow side of terrain a hint of warmth).
+    const fill = new THREE.HemisphereLight(0xffd6a0, 0x2a1c10, 0.32);
     this.scene.add(fill);
     this._fill = fill;
 

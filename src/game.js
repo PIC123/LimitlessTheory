@@ -35,10 +35,14 @@ export class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.5, 200000);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 1.6);
-    dir.position.set(1, 0.5, 0.7);
-    this.scene.add(dir);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+    // Space lighting: a single directional "star" light, very dim ambient. We
+    // want space to feel high-contrast — bright emissives (engines, the star,
+    // the nebula's hot direction) read sharply against a near-black void.
+    this._spaceSun = new THREE.DirectionalLight(0xffffff, 1.05);
+    this._spaceSun.position.set(1, 0.5, 0.7);
+    this.scene.add(this._spaceSun);
+    this._spaceAmbient = new THREE.AmbientLight(0xffffff, 0.08);
+    this.scene.add(this._spaceAmbient);
 
     this.dust = null;
     this.galaxy = null;
@@ -172,6 +176,11 @@ export class Game {
     this.world.findNearestHostile = () => null;
     this.world.world = surf;
     this.mode = 'surface';
+    // Surface scene supplies its own sun + hemisphere fill; turn the space
+    // lights off so they don't double-up. Slightly lower exposure because
+    // sunlit terrain is much brighter than the void.
+    this._setSpaceLightsEnabled(false);
+    this.renderer.toneMappingExposure = 0.85;
 
     // Surface uses no Weapons but the rest of the engine expects one.
     this.weapons = new Weapons(this.world, this.scene);
@@ -347,12 +356,22 @@ export class Game {
     this.hud.update(dt, this.playerActions.mode === 'docked' ? 'docked' : 'surface');
   }
 
+  // Toggle the global space directional + ambient lights. The surface scene
+  // installs its own sun + hemisphere fill, so we want the space lights off
+  // there or surface lighting double-stacks and blows out the highlights.
+  _setSpaceLightsEnabled(on) {
+    if (this._spaceSun)     this._spaceSun.visible = on;
+    if (this._spaceAmbient) this._spaceAmbient.visible = on;
+  }
+
   _loadSystem(systemId, opts = {}) {
     const sys = this.galaxy.systemById(systemId);
 
     // Tear down previous world if any.
     if (this.world) this._teardown();
     this.mode = 'space';
+    this._setSpaceLightsEnabled(true);
+    this.renderer.toneMappingExposure = 0.95;
 
     // Build new world from the system's seed and galaxy context. Reputation is
     // carried over from the persistent profile so kill/trade history matters

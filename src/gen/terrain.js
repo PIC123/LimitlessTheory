@@ -138,8 +138,11 @@ export function buildSkyDome(biome) {
         float t = clamp(vDir.y, -0.2, 1.0);
         vec3 base = mix(uHorizon, uZenith, smoothstep(0.0, 0.7, t));
         float sun = max(0.0, dot(normalize(vDir), normalize(uSunDir)));
-        vec3 sky = base + uSunColor * pow(sun, 80.0) * 1.5;
-        sky += uSunColor * pow(sun, 8.0) * 0.15;   // soft halo
+        // Tight sun disk (high exponent, modest gain) + small halo. Pre-bloom
+        // these stay in mid-bright range; post-threshold bloom only nudges the
+        // sun core, not the whole sky.
+        vec3 sky = base + uSunColor * pow(sun, 180.0) * 0.85;
+        sky += uSunColor * pow(sun, 10.0) * 0.08;
         gl_FragColor = vec4(sky, 1.0);
       }
     `
