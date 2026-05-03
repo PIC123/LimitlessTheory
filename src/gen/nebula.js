@@ -29,6 +29,15 @@ export function buildNebulaSkybox(rng, starDir) {
   const cube = new THREE.CubeTexture(faces);
   cube.colorSpace = THREE.SRGBColorSpace;
   cube.needsUpdate = true;
+
+  // Compute a "fog tint" — a darkened average of the base + accent so
+  // distance fog naturally matches the system's nebula. Saved on the
+  // cube texture's userData; world.js reads it to drive scene.fog.
+  const fogTint = baseColor.clone().lerp(accentColor, 0.35);
+  fogTint.r = Math.pow(fogTint.r, 1.6) * 0.20;
+  fogTint.g = Math.pow(fogTint.g, 1.6) * 0.20;
+  fogTint.b = Math.pow(fogTint.b, 1.6) * 0.20;
+  cube.userData = { fogTint };
   return cube;
 }
 

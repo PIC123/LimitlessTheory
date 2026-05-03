@@ -215,6 +215,11 @@ export class World {
     this.skybox = buildNebulaSkybox(rng, this.starDir);
     this.scene.background = this.skybox;
     this.scene.environment = this.skybox;
+    // Distance fog tinted to the nebula. Mirrors LT's `1 - exp(-d * fogDensity)`
+    // behavior — FogExp2 is `1 - exp(-(d * density)^2)` which is perceptually
+    // very close at the densities we use here.
+    const fogTint = this.skybox?.userData?.fogTint || new THREE.Color(0x0a1020);
+    this.scene.fog = new THREE.FogExp2(fogTint.getHex(), 0.000032);
 
     // Star (just visual; the nebula already bakes the star).
     this.star = new Entity(this, 'star');

@@ -83,6 +83,9 @@ export class PlanetSurface {
     this.scene.add(this.sky);
     this.scene.background = null;
     this.scene.environment = null;
+    // Surface uses a much denser, warmer atmospheric haze. Fades distant
+    // terrain into the horizon color so the planet feels enclosed.
+    this.scene.fog = new THREE.FogExp2(0x6f4e2d, 0.00065);
 
     // Single directional sun, warm but not eye-searing. Threshold-gated bloom
     // (see render/postfx) means the sunlit terrain itself doesn't bloom — only

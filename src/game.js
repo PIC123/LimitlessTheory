@@ -29,7 +29,9 @@ export class Game {
     });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // The LT post-FX pass owns tonemap + color grading + sRGB conversion, so
+    // we explicitly disable the renderer's built-in tonemap to avoid stacking.
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
     this.scene = new THREE.Scene();
@@ -177,10 +179,8 @@ export class Game {
     this.world.world = surf;
     this.mode = 'surface';
     // Surface scene supplies its own sun + hemisphere fill; turn the space
-    // lights off so they don't double-up. Slightly lower exposure because
-    // sunlit terrain is much brighter than the void.
+    // lights off so they don't double-up.
     this._setSpaceLightsEnabled(false);
-    this.renderer.toneMappingExposure = 0.85;
 
     // Surface uses no Weapons but the rest of the engine expects one.
     this.weapons = new Weapons(this.world, this.scene);
@@ -203,9 +203,12 @@ export class Game {
     this.playerActions = new PlayerActions(this.world, this.weapons, this.panels, this);
 
     if (!this.composer) {
-      const { composer, bloom } = createComposer(this.renderer, this.scene, this.camera);
-      this.composer = composer; this.bloom = bloom;
+      const { composer, bloom, ltPost } = createComposer(this.renderer, this.scene, this.camera);
+      this.composer = composer; this.bloom = bloom; this.ltPost = ltPost;
     }
+    // Surface exposure is pulled down — sunlit terrain otherwise crushes
+    // through the LT tonemap and clips highlights.
+    if (this.ltPost) this.ltPost.uniforms.uExposure.value = 0.92;
 
     this._resize();
     this._jumpFlash = 1.0;
@@ -371,7 +374,6 @@ export class Game {
     if (this.world) this._teardown();
     this.mode = 'space';
     this._setSpaceLightsEnabled(true);
-    this.renderer.toneMappingExposure = 0.95;
 
     // Build new world from the system's seed and galaxy context. Reputation is
     // carried over from the persistent profile so kill/trade history matters
@@ -452,11 +454,12 @@ export class Game {
     this.playerActions = new PlayerActions(this.world, this.weapons, this.panels, this);
 
     if (!this.composer) {
-      const { composer, bloom } = createComposer(this.renderer, this.scene, this.camera);
-      this.composer = composer; this.bloom = bloom;
-    } else {
-      // RenderPass holds a reference to scene+camera; both unchanged so just trigger size.
+      const { composer, bloom, ltPost } = createComposer(this.renderer, this.scene, this.camera);
+      this.composer = composer; this.bloom = bloom; this.ltPost = ltPost;
     }
+    // Space exposure: lift slightly so emissives stay punchy through the LT
+    // tonemap. Surface exposure is set lower at landing time (see landOnPlanet).
+    if (this.ltPost) this.ltPost.uniforms.uExposure.value = 1.05;
 
     this.visitedSystems.add(systemId);
     this._resize();
@@ -588,6 +591,7 @@ export class Game {
 
     if (!this.paused) this._step(dt);
 
+    if (this.ltPost) this.ltPost.uniforms.uTime.value = (this.lastT * 0.001) | 0;
     this.composer.render();
     Input.endFrameInput();
   }
