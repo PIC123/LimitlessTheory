@@ -229,6 +229,7 @@
           <div class="tabs">
             <button class="tab active" data-tab="trade">TRADE</button>
             <button class="tab" data-tab="outfit">OUTFIT</button>
+            <button class="tab" data-tab="garage">GARAGE</button>
             <button class="tab" data-tab="services">SERVICES</button>
           </div>
 
@@ -254,6 +255,45 @@
               <div>
                 <h3>SHIP LOADOUT &amp; HANGAR</h3>
                 <div id="outfit-hangar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel hidden" data-tab-panel="garage">
+            <div class="garage-layout">
+              <div class="garage-preview">
+                <canvas id="garage-canvas"></canvas>
+                <div class="garage-hint">Drag to rotate</div>
+              </div>
+              <div class="garage-controls">
+                <div class="garage-section">
+                  <h4>HULL STYLE</h4>
+                  <div class="garage-roles" id="garage-roles"></div>
+                </div>
+                <div class="garage-section">
+                  <h4>HULL COLOR</h4>
+                  <div class="garage-swatches" data-target="hullColor"></div>
+                  <label class="garage-pick">
+                    <span>Custom</span>
+                    <input type="color" id="garage-hull-pick" />
+                  </label>
+                </div>
+                <div class="garage-section">
+                  <h4>ACCENT &amp; ENGINE GLOW</h4>
+                  <div class="garage-swatches" data-target="accentColor"></div>
+                  <label class="garage-pick">
+                    <span>Custom</span>
+                    <input type="color" id="garage-accent-pick" />
+                  </label>
+                </div>
+                <div class="garage-section">
+                  <h4>COCKPIT TINT</h4>
+                  <label class="garage-pick">
+                    <span>Custom</span>
+                    <input type="color" id="garage-cockpit-pick" />
+                  </label>
+                  <button class="btn small" id="garage-randomize">SHUFFLE GREEBLES</button>
+                </div>
               </div>
             </div>
           </div>

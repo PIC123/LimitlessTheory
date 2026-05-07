@@ -385,7 +385,16 @@ export class World {
     player.maxEnergy = 140; player.energy = opts.energy ?? 140;
     player.dragLinear = 0.75; player.dragAngular = 4.0;
     player.credits = opts.credits ?? 2500;
-    player.mesh = buildShipMesh(this.rng, { role: 'player', size: 8 });
+    const appearance = opts.appearance || {};
+    player.metadata.appearance = { ...appearance };
+    player.mesh = buildShipMesh(this.rng, {
+      role: appearance.role || 'player',
+      size: appearance.size || 8,
+      accent: appearance.accentColor,
+      hullColor: appearance.hullColor,
+      cockpitColor: appearance.cockpitColor,
+      trimColor: appearance.trimColor
+    });
     player.radius = 9;
     applyLoadout(player, opts.loadout ?? defaultLoadout());
     player.hull   = opts.hull   ?? player.maxHull;

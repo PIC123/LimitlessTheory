@@ -382,6 +382,132 @@ body { font-family: var(--mono); color: #cfeaff; user-select: none; overflow: hi
 .outfit-row button:hover { background: var(--cyan-bg); color: #fff; }
 .outfit-row button:disabled { opacity: 0.3; cursor: not-allowed; }
 
+/* Ship garage */
+.garage-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) 1fr;
+  gap: 18px;
+  margin-top: 4px;
+}
+.garage-preview {
+  position: relative;
+  background: radial-gradient(ellipse at center, rgba(0, 80, 110, 0.25), rgba(0, 0, 0, 0.85));
+  border: 1px solid var(--panel-edge);
+  border-radius: 4px;
+  min-height: 320px;
+  overflow: hidden;
+}
+#garage-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  cursor: grab;
+}
+#garage-canvas:active { cursor: grabbing; }
+.garage-hint {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; letter-spacing: 2.5px;
+  color: var(--cyan-dim); pointer-events: none;
+}
+.garage-controls {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 60vh; overflow-y: auto;
+  padding-right: 4px;
+}
+.garage-section {
+  border-bottom: 1px solid rgba(0, 231, 255, 0.08);
+  padding-bottom: 10px;
+}
+.garage-section:last-child { border-bottom: 0; }
+.garage-section h4 {
+  color: var(--orange);
+  font-size: 11px;
+  letter-spacing: 3px;
+  margin: 0 0 8px 0;
+}
+.garage-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.garage-swatch {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid rgba(0, 231, 255, 0.2);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.08s;
+  overflow: hidden;
+}
+.garage-swatch:hover { transform: scale(1.05); border-color: var(--cyan); }
+.garage-swatch.active {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0, 231, 255, 0.5);
+}
+.garage-swatch.active::after {
+  content: '◆';
+  position: absolute; bottom: 2px; right: 4px;
+  color: #fff; font-size: 9px;
+  text-shadow: 0 0 4px rgba(0, 231, 255, 0.9);
+}
+
+.garage-roles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.garage-role {
+  background: rgba(0, 12, 24, 0.55);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.08s;
+}
+.garage-role .desc {
+  display: block;
+  font-size: 9px;
+  color: var(--cyan-dim);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+.garage-role:hover { background: var(--cyan-bg); }
+.garage-role.active {
+  background: var(--cyan-bg);
+  border-color: var(--cyan);
+  color: #fff;
+}
+
+.garage-pick {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--cyan-dim);
+  letter-spacing: 1.5px;
+}
+.garage-pick input[type="color"] {
+  width: 32px; height: 28px;
+  border: 1px solid var(--cyan-dim);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+}
+
+@media (max-width: 900px) {
+  .garage-layout { grid-template-columns: 1fr; }
+  .garage-preview { min-height: 240px; }
+  #garage-canvas { min-height: 240px; }
+  .garage-controls { max-height: none; }
+  .garage-swatches { grid-template-columns: repeat(8, 1fr); }
+}
+
 /* Services */
 .services-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 12px;

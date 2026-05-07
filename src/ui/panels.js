@@ -3,6 +3,7 @@ import { Modules, SLOTS, SLOT_LABEL, modulesBySlot, applyLoadout } from '../core
 import { loadProfile, hasSave } from '../core/save.js';
 import { Factions, relLabel, repColor, REP_MIN, REP_MAX } from '../core/factions.js';
 import * as Audio from '../systems/audio.js';
+import { ShipGarage } from './shipGarage.js';
 import * as THREE from 'three';
 
 // Wires the menu, pause, system-map, galaxy-map, and trade overlays.
@@ -355,6 +356,7 @@ NAV / META
   closeTrade() {
     this.tradePanel.classList.add('hidden');
     this._tradeStation = null; this._tradePlayer = null;
+    this._closeGarage();
   }
   isTradeOpen() { return !this.tradePanel.classList.contains('hidden'); }
 
@@ -365,7 +367,122 @@ NAV / META
     for (const panel of document.querySelectorAll('.tab-panel')) {
       panel.classList.toggle('hidden', panel.dataset.tabPanel !== name);
     }
+    if (name === 'garage') this._openGarage();
+    else this._closeGarage();
     Audio.uiBeep();
+  }
+
+  _ensureGarage() {
+    if (this._garage) return this._garage;
+    const canvas = document.getElementById('garage-canvas');
+    if (!canvas) return null;
+    this._garage = new ShipGarage(canvas);
+    this._buildGarageControls();
+    return this._garage;
+  }
+
+  _openGarage() {
+    const g = this._ensureGarage();
+    if (!g) return;
+    const player = this._tradePlayer;
+    const appearance = (player?.metadata?.appearance) || this._defaultAppearance();
+    this._renderGarageState(appearance);
+    g.open(appearance);
+  }
+
+  _closeGarage() {
+    if (this._garage) this._garage.close();
+  }
+
+  _defaultAppearance() {
+    return {
+      role: 'fighter',
+      hullColor: 0x2a2f38,
+      accentColor: 0x00e7ff,
+      cockpitColor: 0x00121a,
+      seed: 0xC0FFEE
+    };
+  }
+
+  // Build the garage's static controls (swatches + role buttons + pickers).
+  // Run once at init; the active-state highlighting is updated via
+  // _renderGarageState() each time the tab opens or a value changes.
+  _buildGarageControls() {
+    // Roles
+    const rolesEl = document.getElementById('garage-roles');
+    rolesEl.innerHTML = '';
+    for (const r of ShipGarage.ROLES) {
+      const b = document.createElement('button');
+      b.className = 'garage-role';
+      b.dataset.role = r.id;
+      b.innerHTML = `${r.label}<span class="desc">${r.desc}</span>`;
+      b.addEventListener('click', () => this._applyAppearance({ role: r.id }));
+      rolesEl.appendChild(b);
+    }
+
+    // Swatches: hull + accent.
+    const wireSwatches = (target, presets) => {
+      const grid = document.querySelector(`.garage-swatches[data-target="${target}"]`);
+      if (!grid) return;
+      grid.innerHTML = '';
+      for (const p of presets) {
+        const sw = document.createElement('div');
+        sw.className = 'garage-swatch';
+        sw.dataset.color = p.color;
+        sw.style.background = `#${p.color.toString(16).padStart(6, '0')}`;
+        sw.title = p.label;
+        sw.addEventListener('click', () => this._applyAppearance({ [target]: p.color }));
+        grid.appendChild(sw);
+      }
+    };
+    wireSwatches('hullColor', ShipGarage.HULL_PRESETS);
+    wireSwatches('accentColor', ShipGarage.ACCENT_PRESETS);
+
+    // Custom color pickers.
+    document.getElementById('garage-hull-pick')?.addEventListener('input', (e) => {
+      this._applyAppearance({ hullColor: parseInt(e.target.value.slice(1), 16) });
+    });
+    document.getElementById('garage-accent-pick')?.addEventListener('input', (e) => {
+      this._applyAppearance({ accentColor: parseInt(e.target.value.slice(1), 16) });
+    });
+    document.getElementById('garage-cockpit-pick')?.addEventListener('input', (e) => {
+      this._applyAppearance({ cockpitColor: parseInt(e.target.value.slice(1), 16) });
+    });
+    document.getElementById('garage-randomize')?.addEventListener('click', () => {
+      this._applyAppearance({ seed: (Math.random() * 0xffffffff) >>> 0 });
+    });
+  }
+
+  _renderGarageState(appearance) {
+    // Swatches
+    for (const sw of document.querySelectorAll('.garage-swatches[data-target="hullColor"] .garage-swatch')) {
+      sw.classList.toggle('active', parseInt(sw.dataset.color) === appearance.hullColor);
+    }
+    for (const sw of document.querySelectorAll('.garage-swatches[data-target="accentColor"] .garage-swatch')) {
+      sw.classList.toggle('active', parseInt(sw.dataset.color) === appearance.accentColor);
+    }
+    // Roles
+    for (const b of document.querySelectorAll('.garage-role')) {
+      b.classList.toggle('active', b.dataset.role === appearance.role);
+    }
+    // Custom pickers reflect current values.
+    const toHex = (n) => '#' + (n >>> 0).toString(16).padStart(6, '0');
+    const h = document.getElementById('garage-hull-pick');     if (h) h.value = toHex(appearance.hullColor);
+    const a = document.getElementById('garage-accent-pick');   if (a) a.value = toHex(appearance.accentColor);
+    const c = document.getElementById('garage-cockpit-pick');  if (c) c.value = toHex(appearance.cockpitColor || 0x00121a);
+  }
+
+  // Merge a partial appearance change, push to the live world ship + the
+  // garage preview, and notify the host (Game) so it can persist + save.
+  _applyAppearance(partial) {
+    const player = this._tradePlayer;
+    if (!player) return;
+    const cur = player.metadata.appearance || this._defaultAppearance();
+    const next = { ...cur, ...partial };
+    player.metadata.appearance = next;
+    if (this._garage) this._garage.setAppearance(next);
+    this._renderGarageState(next);
+    this.opts.onAppearanceChange?.(next);
   }
 
   refreshTrade() {

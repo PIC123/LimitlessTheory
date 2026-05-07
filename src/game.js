@@ -16,6 +16,7 @@ import { HUD } from './ui/hud.js';
 import { createComposer } from './render/postfx.js';
 import { hashSeed } from './core/rng.js';
 import { saveProfile, snapshot } from './core/save.js';
+import { buildShipMesh } from './gen/ship.js';
 
 // Top-level game controller. Owns the renderer, scene, current World, Galaxy,
 // and the loop. Knows how to swap systems on jump and how to save / load profiles.
@@ -138,6 +139,31 @@ export class Game {
     return saveProfile(this.persistent);
   }
 
+  // Live-rebuild the player's ship mesh from a new appearance. Called by the
+  // garage tab when colors / role / seed change. Position, orientation, and
+  // velocity are preserved; the engine animation reference (engineGroup) is
+  // re-resolved each frame via mesh.userData so swapping is seamless.
+  rebuildPlayerShip(appearance) {
+    const p = this.world?.player;
+    if (!p || !this.world.rng) return;
+    p.metadata.appearance = { ...appearance };
+    if (p.mesh && this.scene) this.scene.remove(p.mesh);
+    const newMesh = buildShipMesh(this.world.rng, {
+      role: appearance.role || 'player',
+      size: appearance.size || 8,
+      accent: appearance.accentColor,
+      hullColor: appearance.hullColor,
+      cockpitColor: appearance.cockpitColor,
+      trimColor: appearance.trimColor
+    });
+    newMesh.position.copy(p.position);
+    newMesh.quaternion.copy(p.quaternion);
+    p.mesh = newMesh;
+    this.scene.add(newMesh);
+    this.persistent.player.appearance = { ...appearance };
+    this.saveNow();
+  }
+
   // ---- Planet landing / takeoff ----
 
   // Land on a planet entity in the current system. Tears down the system
@@ -172,7 +198,8 @@ export class Game {
       credits:this.persistent.player.credits,
       cargo:  this.persistent.player.cargo,
       loadout:this.persistent.player.loadout,
-      hangar: this.persistent.player.hangar
+      hangar: this.persistent.player.hangar,
+      appearance: this.persistent.player.appearance
     });
     this.world = surf;
     this.world.findNearestHostile = () => null;
@@ -269,8 +296,15 @@ export class Game {
         hull: null, shield: null, energy: 140,
         credits: 2500,
         cargo: {},
-        loadout: null,        // null means apply defaultLoadout()
-        hangar: []
+        loadout: null,
+        hangar: [],
+        appearance: {
+          role: 'fighter',
+          hullColor: 0x2a2f38,
+          accentColor: 0x00e7ff,
+          cockpitColor: 0x00121a,
+          seed: 0xC0FFEE
+        }
       }
     };
   }
@@ -288,7 +322,8 @@ export class Game {
       credits: p.credits | 0,
       cargo,
       loadout: { ...(p.metadata.loadout || {}) },
-      hangar: [...(p.metadata.hangar || [])]
+      hangar: [...(p.metadata.hangar || [])],
+      appearance: { ...(p.metadata.appearance || {}) }
     };
     this.persistent.visitedSystems = [...this.visitedSystems];
     if (this.world?.reputation) {
@@ -402,7 +437,8 @@ export class Game {
       credits: profPlayer.credits,
       cargo: profPlayer.cargo,
       loadout: profPlayer.loadout,
-      hangar: profPlayer.hangar
+      hangar: profPlayer.hangar,
+      appearance: profPlayer.appearance
     });
 
     // Weapons + AI Think + escorts.

@@ -2,34 +2,64 @@ import * as THREE from 'three';
 
 // Parametric ship generator. Inspired by LT's Gen.ShipFighter / Gen.ShipLib parametric
 // shape pipeline (hull + wings + greebles + sockets).
-// We don't reproduce its full Joint/Module/Parametric system, but we hit the
-// same beats: noisy hull, mirrored wings, engine pods, glowing accents, weapon mounts.
+//
+// Customizable parameters:
+//   role         : 'fighter' | 'sleek' | 'heavy' | 'trader' | 'patrol' | 'player'
+//                  — drives base proportions (length × width × height multipliers)
+//   size         : visual scale, default 6
+//   accent       : engine glow / accent strip color (default cyan)
+//   hullColor    : hull base color (default randomized cool gray)
+//   trimColor    : panel trim color (default near-black)
+//   cockpitColor : canopy tint (default deep navy)
+//   variant      : numeric seed offset so re-rolling with same role gives diff hulls
 export function buildShipMesh(rng, opts = {}) {
   const role = opts.role || 'fighter';
   const size = opts.size || 6;
   const accentColor = new THREE.Color(opts.accent != null ? opts.accent : 0x00e7ff);
 
+  // Role drives base proportions. The randomized noise on top still applies
+  // so two "sleek" ships look related but not identical.
+  const ROLE = {
+    fighter: { len: 1.00, w: 1.00, h: 1.00, wings: 2, glow: 1.0 },
+    sleek:   { len: 1.45, w: 0.65, h: 0.65, wings: 2, glow: 1.2 },
+    heavy:   { len: 0.95, w: 1.30, h: 1.25, wings: 2, glow: 0.9 },
+    trader:  { len: 1.60, w: 1.40, h: 1.00, wings: 0, glow: 0.85 },
+    patrol:  { len: 1.10, w: 0.95, h: 0.90, wings: 2, glow: 1.0 },
+    player:  { len: 1.10, w: 1.00, h: 1.00, wings: 2, glow: 1.0 }
+  };
+  const r = ROLE[role] || ROLE.fighter;
+
   const root = new THREE.Group();
 
+  const hullColor = opts.hullColor != null
+    ? new THREE.Color(opts.hullColor)
+    : new THREE.Color().setHSL(rng.getUniform(), 0.05, 0.35);
+  const trimColor = opts.trimColor != null
+    ? new THREE.Color(opts.trimColor)
+    : new THREE.Color(0x1a2230);
+  const cockpitColor = opts.cockpitColor != null
+    ? new THREE.Color(opts.cockpitColor)
+    : new THREE.Color(0x00121a);
+
   const hullMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(rng.getUniform(), 0.05, 0.35),
+    color: hullColor,
     roughness: 0.55, metalness: 0.7,
     flatShading: true
   });
   const trimMat = new THREE.MeshStandardMaterial({
-    color: 0x1a2230, roughness: 0.4, metalness: 0.85
+    color: trimColor, roughness: 0.4, metalness: 0.85
   });
   const accentMat = new THREE.MeshStandardMaterial({
     color: accentColor,
     emissive: accentColor,
-    emissiveIntensity: 2.5,
+    emissiveIntensity: 2.5 * r.glow,
     roughness: 0.3, metalness: 0.0
   });
 
   // ---- Hull ----
-  const hullLen = 1.0 + rng.getUniform() * 0.6;
-  const hullW = 0.55 + rng.getUniform() * 0.3;
-  const hullH = 0.35 + rng.getUniform() * 0.2;
+  const hullLen = (1.0 + rng.getUniform() * 0.6) * r.len;
+  const hullW = (0.55 + rng.getUniform() * 0.3) * r.w;
+  const hullH = (0.35 + rng.getUniform() * 0.2) * r.h;
 
   const hullGeo = role === 'trader'
     ? new THREE.CylinderGeometry(hullW, hullW * 0.7, hullLen * 2.6, 7, 1)
@@ -56,7 +86,7 @@ export function buildShipMesh(rng, opts = {}) {
   const cockpit = new THREE.Mesh(
     new THREE.SphereGeometry(0.22, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
     new THREE.MeshStandardMaterial({
-      color: 0x00121a, emissive: accentColor, emissiveIntensity: 0.4,
+      color: cockpitColor, emissive: accentColor, emissiveIntensity: 0.4,
       roughness: 0.2, metalness: 0.7
     })
   );
@@ -65,7 +95,7 @@ export function buildShipMesh(rng, opts = {}) {
   root.add(cockpit);
 
   // ---- Wings (mirrored) ----
-  const wingCount = role === 'trader' ? 0 : 2;
+  const wingCount = r.wings;
   for (let i = 0; i < wingCount; i++) {
     const sign = i === 0 ? 1 : -1;
     const wingGeo = new THREE.BoxGeometry(0.7 + rng.getUniform() * 0.4, 0.06, 0.5 + rng.getUniform() * 0.3);

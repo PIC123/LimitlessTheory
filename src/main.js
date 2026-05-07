@@ -138,6 +138,9 @@ const panels = new Panels({
     // Persist immediately after any module trade so the player doesn't have to.
     game?.saveNow();
   },
+  onAppearanceChange: (appearance) => {
+    game?.rebuildPlayerShip(appearance);
+  },
   onJumpTo: (systemId) => {
     if (!game) return;
     if (game.playerActions?.mode === 'docked') game.playerActions.undock();

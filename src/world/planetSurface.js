@@ -182,7 +182,14 @@ export class PlanetSurface {
       dragLinear: 0.6, dragAngular: 4.0,
       lastShotAt: 0,
       metadata: {},
-      mesh: buildShipMesh(this.rng, { role: 'player', size: 8 }),
+      mesh: buildShipMesh(this.rng, {
+        role: opts.appearance?.role || 'player',
+        size: opts.appearance?.size || 8,
+        accent: opts.appearance?.accentColor,
+        hullColor: opts.appearance?.hullColor,
+        cockpitColor: opts.appearance?.cockpitColor,
+        trimColor: opts.appearance?.trimColor
+      }),
       // Entity-protocol stubs.
       cargoUsed() { let n = 0; for (const q of this.cargo.values()) n += q; return n; },
       cargoAdd(id, qty) {
@@ -211,6 +218,7 @@ export class PlanetSurface {
     if (opts.cargo) for (const [k, v] of Object.entries(opts.cargo)) player.cargo.set(k, v);
     if (opts.hangar) player.metadata.hangar = [...opts.hangar];
     else player.metadata.hangar = [];
+    if (opts.appearance) player.metadata.appearance = { ...opts.appearance };
 
     // Position above terrain at spawn.
     const groundY = sampleHeight(this.terrain, player.position.x, player.position.z);
